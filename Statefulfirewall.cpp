@@ -7,15 +7,15 @@
 
 int main(int ac,char *av[])
 {
-	pcap_t *dev;
+	pcap_if_t *dev;
 	char errbuf[100];
-	dev = pcap_findalldevs(&dev,errbuf);
+	 pcap_findalldevs(&dev,errbuf);
 
-	pcap_t *dev_it;
+	pcap_if_t *dev_it;
 
 	for(dev_it = dev ; dev_it != NULL ; dev_it = dev_it->next)
 	{
-		cout<<"device name :"<<dev_it->name<<endl;
+		std::cout<<"device name :"<<dev_it->name<<std::endl;
 	}
 	return 0;
 }
