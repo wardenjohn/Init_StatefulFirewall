@@ -9,6 +9,7 @@
 #include <pcap/pcap.h>
 #include "walldefiner.h"
 #include "wallnetworker.h"
+#include "menu.h"
 
 #define TIMEOUT_INTIME 1 // this is the limit time of in packages 
 #define TIMEOUT_OUTTIME 1 // this is the limited time of out packages
@@ -23,7 +24,7 @@ int main(int ac , char *av[])
 		return -1;
 	else{
 		if(choice == 1 ){
-			
+
 		}
 		else if(choice == 2 ){
 			list_dev();
