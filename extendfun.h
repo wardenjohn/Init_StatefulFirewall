@@ -1,4 +1,7 @@
 /*******This is the extends function of the selection of the firewall *****************/
+#include <vector>
+#include <fstream>
+
 
 int print_title_cpp()
 {
@@ -56,7 +59,22 @@ void check_connection()
 
 void recover_network()
 {
+	std::fstream dev_back;
+	dev_back.open("dev_backup.txt");
+	
+	std::vector<std::string> dev_name;
+	std::string namebuf;
+	while (getline(dev_back , namebuf)) {
+		dev_name.push_back(namebuf);
+	}
 
+	//start to turn on the device
+	int comm_len = 20;
+	char comm[comm_len];
+	for (int i = 0; i < dev_name.size(); i++) {
+		sprintf(comm, "sudo ipconfig %s up", dev_name[i].c_str());
+		system(comm);
+	}
 }
 
 void stop_network()
@@ -85,7 +103,8 @@ void stop_network()
 	int com_len = 20;
 	char comm[com_len];
 	for (int i = 0; i < dev_name.size; i++) {
-		spritf(comm, "sudo ipconfig %s down", dev_name[i]);
+		spritf(comm, "sudo ipconfig %s down", dev_name[i].c_str());
+		system(comm);
 	}
 }
 
