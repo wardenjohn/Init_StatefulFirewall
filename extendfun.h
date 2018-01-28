@@ -72,7 +72,7 @@ void recover_network()
 	int comm_len = 20;
 	char comm[comm_len];
 	for (int i = 0; i < dev_name.size(); i++) {
-		sprintf(comm, "sudo ipconfig %s up", dev_name[i].c_str());
+		sprintf(comm, "sudo ifconfig %s up", dev_name[i].c_str());
 		system(comm);
 	}
 }
@@ -102,8 +102,8 @@ void stop_network()
 
 	int com_len = 20;
 	char comm[com_len];
-	for (int i = 0; i < dev_name.size; i++) {
-		spritf(comm, "sudo ipconfig %s down", dev_name[i].c_str());
+	for (int i = 0; i < dev_name.size(); i++) {
+		sprintf(comm, "sudo ifconfig %s down", dev_name[i].c_str());
 		system(comm);
 	}
 }
