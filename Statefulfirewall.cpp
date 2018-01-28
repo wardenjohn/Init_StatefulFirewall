@@ -9,14 +9,19 @@
 #include <pcap/pcap.h>
 #include "walldefiner.h"
 #include "wallnetworker.h"
-#include "menu.h"
+#include "extendfun.h"
 
 #define TIMEOUT_INTIME 1 // this is the limit time of in packages 
 #define TIMEOUT_OUTTIME 1 // this is the limited time of out packages
 #define MAX_INPUT_LINE 7
 
+int run_firewall(int ac)
+{
+	char errbuf[ERRBUF_SIZE];
 
-int main(int ac , char *av[])
+}//this is the entrance of the firewall function
+
+int main(int ac , char *av[])//av is included the ./running command
 {
 	int choice;
 	choice = print_title_cpp();
@@ -24,12 +29,24 @@ int main(int ac , char *av[])
 		return -1;
 	else{
 		if(choice == 1 ){
-
+			//run the stateful firewall
+			int flag;
+			printf("please enter the ??? and\n" );
+			flag=run_firewall(ac);
 		}
 		else if(choice == 2 ){
+			//list the devices situation
 			list_dev();
 		}
-		else if(choice == 3 ){
+		else if(choice == 3){
+			//check about the network connection
+
+		}
+		else if(choice == 4){
+			//recover or stop the network connection
+			re_st_net();
+		}
+		else if(choice == 5 ){
 			printf("See you !\n");
 			exit(0);
 		}
@@ -41,19 +58,9 @@ int main(int ac , char *av[])
 	return 0;
 }
 
-/*
-int main(int ac,char *av[])
-{
-	pcap_if_t *dev;
-	char errbuf[100];
-	pcap_findalldevs(&dev,errbuf);
-
-	pcap_if_t *dev_it;
-
-	for(dev_it = dev ; dev_it != NULL ; dev_it = dev_it->next)
-	{
-		std::cout<<"device name :"<<dev_it->name<<std::endl;
-	}
-	return 0;
-}
+/* Processing stste:
+*	you need to finish sevel function of the choosen menu;
+*   you know can reject all the package or recover it using some function , go and search it
+*	how to check the network state
+*	how to relize the stateful firewall?
 */
