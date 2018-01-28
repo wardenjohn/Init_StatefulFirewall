@@ -1,5 +1,5 @@
 /*******This is the extends function of the selection of the firewall *****************/
-//#include <fstream>
+
 int print_title_cpp()
 {
 	std::cout<<"*****Welcome using stateful firewall!*****"<<std::endl;
@@ -62,9 +62,10 @@ void recover_network()
 void stop_network()
 {
 	pcap_if_t *alldevs;
+	std::vector<std::string> dev_name;
 	char errbuf[ERRBUF_SIZE];
 
-	std::fstream dev_backup;
+	std::ofstream dev_backup;
 	dev_backup.open("dev_backup.txt");
 
 	int pcap_flag = pcap_findalldevs(&alldevs,errbuf);
@@ -77,7 +78,14 @@ void stop_network()
 		pcap_if_t *dev;
 		for (dev = alldevs; dev != NULL; dev = dev->next) {
 			dev_backup << dev->name << "\n";
+			dev_name.push_back(dev->name);
 		}
+	}
+
+	int com_len = 20;
+	char comm[com_len];
+	for (int i = 0; i < dev_name.size; i++) {
+		spritf(comm, "sudo ipconfig %s down", dev_name[i]);
 	}
 }
 
