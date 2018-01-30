@@ -1,26 +1,30 @@
-/***********This is the funtion body definder file***********/
-//#include "walldefinder.h"
-// void list_dev()
-// {
-// 	pcap_if_t *alldevs;
-// 	char errbuf[ERRBUF_SIZE];	
+/***********This is the function and structor of network definder file***********/
+#define MAC_NUM 6
+#define BIN_NUM 4
 
-// 	int pcap_flag ;
+extern int ONLINE;
 
-// 	pcap_flag = pcap_findalldevs(&alldevs , errbuf);
+extern int TCP_PORT;
+extern int UDP_PORT;
 
-// 	if(pcap_flag == -1){
-// 		char err[]="finding devs get wrong and error message as follow";
-// 		printf("%s\n", err);
-// 		printf("%s\n", errbuf);
-// 	}
-// 	else{
-// 		pcap_if_t *dev;
-// 		int count=0;
-// 		for(dev = alldevs ;dev != NULL;dev = dev->next){
-// 			printf("device name : %s\n", dev->name);
-// 			count++;
-// 		}
-// 		printf("total devices in count is : %d\n",count);
-// 	}
-// }
+
+typedef struct FireWall {
+	uint8_t virtual_mac_address[MAC_NUM];
+	uint8_t firewall_mac_address[MAC_NUM];
+	uint8_t switch_mac_address[MAC_NUM];
+	uint8_t route_mac_address[MAC_NUM];
+
+	char *virtual_ip_buf;
+	char *firewall_ip_buf;
+	char *switch_ip_buf;
+
+	uint8_t virtual_ip_bin[BIN_NUM];
+	uint8_t firewall_ip_bin[BIN_NUM];
+	uint8_t switch_ip_bin[BIN_NUM];
+
+	char *devName_in;//entrance of the name of the device
+	char *devName_out;//out of the device name
+
+	pcap_t *pcap_in;
+	pcap_t *pcap_out;
+}firewall;
