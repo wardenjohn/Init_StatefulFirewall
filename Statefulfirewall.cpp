@@ -274,7 +274,7 @@ int inital_rules(firewall *fw)
 	char ip_src[32], ip_dest[32], port_source[32], port_destin[32];
 	int count_rules = 0;
 
-	uint8_t bin_ip[4];//store ip in binary
+	uint8_t ip_bin[4];//store ip in binary
 	while (getline(rules_file, buff)) {
 		count_rules++;
 		sscanf(buff, "%s %s %s %s %s %s %s", rules, driver, service, ip_src, port_source, ip_dest, port_destin);
@@ -312,7 +312,48 @@ int inital_rules(firewall *fw)
 			free(new_rule);
 		}
 
+		//ip source 
+		if (is_match(ip_src, "HOME")) {
+			memcpy(ip_src, fw->virtual_ip_buf, strlen(fw->virtual_ip_buf) + 1);
+		}
+		if (is_match(ip_src, "any")) {
+			new_rule->source_ip_any = 1;
+		}
+		else {
+			str_to_ip(ip_src,ip_bin);//change the format from string into ip address
+			new_rule->source_ip = unpack_4byte(ip_bin);
+		}
+
+		//Port Source
+		if (is_match(port_source, "any")) {
+			new_rule->source_port_any = 1
+		}
+		else {
+			new_rule->source_port = atoi(port_source);
+		}
+
+		//IP Destnation
+		if (is_match(ip_dest, "HOME")) {
+			memcpy(ip_dest,fw->virtual_ip_buf,strlen(sizeof(fw->virtual_ip_buf)+1));
+		}
+		if (is_match(ip_dest, "any")) {
+			new_rule->destination_ip_any = 1;
+		}
+		else {
+			new_rule->destination_ip = unpack_4byte(ip_bin);
+		}
+
+		//Port Destnation
+		if (is_match(port_destin, "any")) {
+			new_rule->destination_port_any = 1;
+		}
+		else {
+			new_rule->destination_port = atoi(port_destin);
+		}
+
+		inital_rules(new_rule);
 	}
+	return 1;
 }
 
 ////////////////////////////////////////////////////
