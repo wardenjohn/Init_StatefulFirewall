@@ -54,5 +54,10 @@ typedef struct FireWall {
 /******** Functions for the rules list ******/
 int service_map(char s[]);
 
+uint32_t unpack_4byte(const uint8_t *buf);//unpack the wen package
+
+void insert_rules(rules_ele *rule);
 /************ Helping Function *************/
 bool is_match(char *to_match, char *source);
+
+void str_to_ip(char *buf, uint8_t *ip);

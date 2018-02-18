@@ -19,3 +19,12 @@ int service_map(char s[])
 	else return -1;
 }//using the name to get the flag of the rules
 
+void str_to_ip(char *buf, uint8_t *ip) 
+{
+	int a, b, c, d;
+	sscanf(buf, "%d,%d,%d,%d", &a, &b, &c, &d);
+	ip[0] = a;
+	ip[1] = b;
+	ip[2] = c;
+	ip[3] = d;
+}
