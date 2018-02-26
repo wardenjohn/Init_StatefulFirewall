@@ -56,8 +56,14 @@ int service_map(char s[]);
 
 uint32_t unpack_4byte(const uint8_t *buf);//unpack the wen package
 
+uint16_t unpack_2byte(const uint8_t *buf);
+
 void insert_rules(rules_ele *rule);
 /************ Helping Function *************/
 bool is_match(char *to_match, char *source);
 
 void str_to_ip(char *buf, uint8_t *ip);
+
+void print_ethernet(ethernet_stor *enthernet_head, char *dir);
+
+bool address_equals_ip(const uint8_t *source, const uint8_t *check);

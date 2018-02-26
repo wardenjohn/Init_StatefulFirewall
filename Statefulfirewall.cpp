@@ -356,11 +356,59 @@ int inital_rules(firewall *fw)
 	return 1;
 }
 
+//this function is for the protocal which is tcp
+int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_stor *tcp_header,int dir)
+{
+	if (dir == OUT) {//direction
+		
+	}
+}
+
 ////////////////////////////////////////////////////
 //main function listen in the data
 int listen_in(firewall *fw)
 {
+	const uint8_t *packet = NULL;
+	struct pcap_pkthdr *header = NULL; //pcap_pkthdr _readme.md ---1
 
+	int ret = pcap_next_ex(fw->pcap_in, &header, &packet)//pcap_next_ex() README.md ---2
+
+	if (ret == -2) return -1;
+	if (packet == NULL) return -1;
+
+	ethernet_stor *enthernet_header = (ethernet_stor *)packet;
+	uint16_t enthertype = unpack_2byte(enthernet_header->ethernet_type);
+	struct timeval current_time = header->ts;
+
+#if DEBUGGING
+	
+#endif // DEBUGGING
+
+	if (enthertype == ETHERTYPE_IP) {
+		ip_stor *ip_header = (ip_stor *)malloc(sizeof(ip_stor));
+		int protocol = ip_header->protocol;
+		ip_group ip;
+		ip_group inv_ip;
+		ip_port_group ip_port;
+		ip_port_group inv_ip_port;
+
+#ifdef DEBUGGING
+
+#endif // DEBUGGING , operate if under the debugging status
+
+		if (address_equals_ip(fw->switch_ip_bin, ip_header->destnation_ip)) {
+			if (protocol == 6) {//TCP
+				tcp_status A;
+				tcp_status A_inv;
+				void* table_entry;
+
+				int ihl = ip_header->version & 0x0F;
+				tcp_stor *tcp_header = (tcp_stor *)malloc(sizeof(tcp_stor));
+
+
+			}
+		}
+	}
 }
 ////////////////////////////////////////////////////
 //main function listen out or sending out the data
