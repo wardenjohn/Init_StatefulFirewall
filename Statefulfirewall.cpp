@@ -54,7 +54,7 @@ bool is_devicefound(char *wait_to_check)
 }
 
 /*function convert from setting to ip address*/
-int convert_to_ip(char *buff,char *ip_dest)
+int convert_to_ip(char *buff,uint8_t *ip_dest)
 {
 	int a, b, c, d;
 	sscanf(buff, "%d.%d.%d.%d", &a, &b, &c, &d);
@@ -69,33 +69,46 @@ int convert_to_ip(char *buff,char *ip_dest)
 /*function convert from setting file to mac address*/
 int conver_hexToint(char hex)
 {
+	hex = toupper(hex);
 	return hex > '9' ? hex - 'A' + 10 : hex - '0';
 }
 
-int convert_to_mac(std::string readbuff, char *mac_dest)
+int convert_to_mac(char* readbuff, uint8_t *mac_dest)
 {
-	std::string tem;
-	for (int i = 0; i < readbuff.length(); i++) {
-		tem.append(convert_to_mac(readbuff[i]));
+	// std::string tem;
+	// for (int i = 0; i < readbuff.length(); i++) {
+	// 	tem.append(convert_to_mac(readbuff[i]));
+	// }
+	// mac_dest = tem.c_str();//convert this string to char *
+	// return 0;
+	uint8_t aux;
+	for(;*readbuff;readbuff+=3,mac_dest++){
+		aux = (conver_hexToint(*readbuff) << 4 )+(conver_hexToint(*(readbuff+1)));
+		*mac_dest = aux;
 	}
-	mac_dest = tem.c_str();//convert this string to char *
-	return 0;
 }
 ////////////////////////////////////////////////////
 int inital_firewall(firewall *fw ,char *name_in ,char *name_out ,char *errbuf)
 {
-	std::ifstream settings;
-	settings.open("setting.config",ios::in);
+	// std::ifstream settings;
+	// settings.open("setting.config",std::ios::in);
 
-	if (!settings.is_open()) {
-		printf("opening setting.config errors,exit the program\n");
-		return -1;
+	// if (!settings.is_open()) {
+	// 	printf("opening setting.config errors,exit the program\n");
+	// 	return -1;
+	// }
+
+	FILE *settings;
+	settings = fopen("settings.config", "r");
+
+	if (settings == NULL) {
+		return 0;
 	}
-
 	int line = 0;
-	std::string readbuff[BUFSIZE];
-	while (getline(settings, readbuff)) {
-		int length = readbuff->length();
+	char readbuff[1024];
+	while (fgets(readbuff,1024,settings)) {
+
+		int length = strlen(readbuff);
 		if (line == 0) {
 			convert_to_mac(readbuff, fw->virtual_mac_address);
 		}
@@ -134,7 +147,7 @@ int inital_firewall(firewall *fw ,char *name_in ,char *name_out ,char *errbuf)
 	}// this loop is convert the setting in file in to the program
 
 	if (line != MAX_SETTING_INPUT_LINE) {
-		settings.close();
+		fclose(settings);
 		return -1;
 	}
 
@@ -170,14 +183,14 @@ int inital_firewall(firewall *fw ,char *name_in ,char *name_out ,char *errbuf)
 		}
 
 		//open_live return a pcap_t* to obtain a packet capture handle to look at packets on the network
-		char err[BUFSIZE] = '\0';
-		fw->pcap_in = pcap_open_live(fw->devName_in,BUFSIZE,0,fw->data_timeout_in,err);
+		errbuf="";
+		fw->pcap_in = pcap_open_live(fw->devName_in,BUFSIZE,0,fw->data_timeout_in,errbuf);
 		if (fw->pcap_in == NULL) {
 			printf("Error in pcap in ,device name : %s\n", fw->devName_in);
 			return -1;
 		}
-		if (strlen(err) != 0 && fw->pcap_in != NULL) {
-			printf("Warning in pcap(in) : %s\n", err);
+		if (strlen(errbuf) != 0 && fw->pcap_in != NULL) {
+			printf("Warning in pcap(in) : %s\n", errbuf);
 		}
 		if (pcap_datalink(fw->pcap_in) != 1) {
 			printf("No ethernet data-link pcap in\n");
@@ -185,14 +198,14 @@ int inital_firewall(firewall *fw ,char *name_in ,char *name_out ,char *errbuf)
 		}
 
 		//using pcap_datalink to return the link-layer header type for the live capture
-		err = '\0';
-		fw->pcap_out = pcap_open_live(fw->devName_out, BUFSIZE, 0, fw->data_timeout_out, err);
+		errbuf = '\0';
+		fw->pcap_out = pcap_open_live(fw->devName_out, BUFSIZE, 0, fw->data_timeout_out, errbuf);
 		if (fw->pcap_out == NULL) {
 			printf("Error in pcap out ,device name : %s\n", fw->devName_out);
 			return -1;
 		}
-		if (strlen(err) != 0 && fw->pcap_out != NULL) {
-			printf("Warning in pcap(out) : %s\n",err);
+		if (strlen(errbuf) != 0 && fw->pcap_out != NULL) {
+			printf("Warning in pcap(out) : %s\n",errbuf);
 		}
 		if (pcap_datalink(fw->pcap_out) != 1) {
 			printf("No ethernet data-link pcap out\n");
@@ -221,7 +234,8 @@ int inital_firewall(firewall *fw ,char *name_in ,char *name_out ,char *errbuf)
 			return -1;
 		}
 	}
-	settings.close();
+	// settings.close();
+	fclose(settings);
 	return 0;
 }
 
@@ -261,23 +275,29 @@ int inital_rules(firewall *fw)
 	rules_table.head = NULL;
 	rules_table.tail = NULL;
 
-	std::fstream rules_file;
-	rules_file.open("default.rules");
+	// std::fstream rules_file;
+	// rules_file.open("default.rules");
 
-	if (!rules_file.is_open()) {
-		std::cout << "opening rules file failed!" << std::endl;
-		return -1;
+	// if (!rules_file.is_open()) {
+	// 	std::cout << "opening rules file failed!" << std::endl;
+	// 	return -1;
+	// }
+	FILE *rules_file;
+	rules_file = fopen("default.rules", "r");
+
+	if (rules_file == NULL) {
+		return 0;
 	}
 
 	char buff[1024];
-	char rules[32], driver[32], service[32];
+	char rules[32], dir[32], service[32];
 	char ip_src[32], ip_dest[32], port_source[32], port_destin[32];
 	int count_rules = 0;
 
 	uint8_t ip_bin[4];//store ip in binary
-	while (getline(rules_file, buff)) {
+	while (fgets(buff,1024,rules_file)) {
 		count_rules++;
-		sscanf(buff, "%s %s %s %s %s %s %s", rules, driver, service, ip_src, port_source, ip_dest, port_destin);
+		sscanf(buff, "%s %s %s %s %s %s %s", rules, dir, service, ip_src, port_source, ip_dest, port_destin);
 
 		rules_ele *new_rule = (rules_ele *)malloc(sizeof(rules_ele));
 		new_rule->destination_ip_any = 0;
@@ -326,7 +346,7 @@ int inital_rules(firewall *fw)
 
 		//Port Source
 		if (is_match(port_source, "any")) {
-			new_rule->source_port_any = 1
+			new_rule->source_port_any = 1;
 		}
 		else {
 			new_rule->source_port = atoi(port_source);
@@ -334,7 +354,7 @@ int inital_rules(firewall *fw)
 
 		//IP Destnation
 		if (is_match(ip_dest, "HOME")) {
-			memcpy(ip_dest,fw->virtual_ip_buf,strlen(sizeof(fw->virtual_ip_buf)+1));
+			memcpy(ip_dest,fw->virtual_ip_buf,strlen(fw->virtual_ip_buf+1));
 		}
 		if (is_match(ip_dest, "any")) {
 			new_rule->destination_ip_any = 1;
@@ -351,7 +371,8 @@ int inital_rules(firewall *fw)
 			new_rule->destination_port = atoi(port_destin);
 		}
 
-		inital_rules(new_rule);
+		//inital_rules(new_rule);
+		insert_rules(new_rule);
 	}
 	return 1;
 }
@@ -360,6 +381,9 @@ int inital_rules(firewall *fw)
 int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_stor *tcp_header,int dir)
 {
 	if (dir == OUT) {//direction
+		memcpy(ethernet_header->source_mac,fw->switch_mac_address,sizeof(fw->switch_mac_address));
+		memcpy(ethernet_header->destnation_mac,fw->route_mac_address,sizeof(fw->route_mac_address));
+		memcpy(ip_header->source_ip,fw->switch_ip_bin,sizeof(fw->switch_ip_bin));
 		
 	}
 }
@@ -371,7 +395,7 @@ int listen_in(firewall *fw)
 	const uint8_t *packet = NULL;
 	struct pcap_pkthdr *header = NULL; //pcap_pkthdr _readme.md ---1
 
-	int ret = pcap_next_ex(fw->pcap_in, &header, &packet)//pcap_next_ex() README.md ---2
+	int ret = pcap_next_ex(fw->pcap_in, &header, &packet);//pcap_next_ex() README.md ---2
 
 	if (ret == -2) return -1;
 	if (packet == NULL) return -1;
@@ -405,6 +429,21 @@ int listen_in(firewall *fw)
 				int ihl = ip_header->version & 0x0F;
 				tcp_stor *tcp_header = (tcp_stor *)malloc(sizeof(tcp_stor));
 
+				ip_port.source_ip = ip.source_ip;
+				ip_port.destination_ip = ip.destination_ip;
+				ip_port.destination_port = unpack_2byte(tcp_header->destination_port);
+				ip_port.source_port = unpack_2byte(tcp_header->source_port);
+
+				inv_ip_port.source_ip = ip.source_ip;
+				inv_ip_port.destination_ip = ip.destination_ip;
+				inv_ip_port.source_port = ip_port.source_port;
+				inv_ip_port.destination_port = ip_port.destination_port;
+
+				A.ip_port = ip_port;
+				A_inv.ip_port = inv_ip_port;
+				A.event_time = current_time;
+				A_inv.event_time = current_time;
+
 
 			}
 		}
@@ -421,10 +460,13 @@ int listen_out(firewall *fw)
 int run_firewall(int ac)
 {
 	char errbuf[ERRBUF_SIZE];
-	std::string name_in_t, name_out_t;
-	std::cin >> name_in_t >> name_out_t;
-	char name_in = name_in_t.c_str();
-	char name_out = name_out_t.c_str();
+	// std::string name_in_t, name_out_t;
+	// std::cin >> name_in_t >> name_out_t;
+	// char name_in = name_in_t.c_str();
+	// char name_out = name_out_t.c_str();
+	char *name_in,*name_out;
+	scanf("%s",name_in);
+	scanf("%s",name_out);
 
 	firewall *fw = (firewall *)malloc(sizeof(firewall));
 	

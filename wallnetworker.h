@@ -1,4 +1,5 @@
 /***********This is the function and structor of network definder file***********/
+#include "walldefiner.h"
 #define MAC_NUM 6
 #define BIN_NUM 4
 #define HIGH_PORT 50000
@@ -23,8 +24,8 @@ extern int ONLINE;
 extern int TCP_PORT;
 extern int UDP_PORT;
 
-rules_list rules_table;//the rules table to store the rules
-hash_node state_table[TABLE_LINE][TABLE_SIZE];
+extern rules_list rules_table;//the rules table to store the rules
+extern hash_node state_table[TABLE_LINE][TABLE_SIZE];
 uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];
 
 typedef struct FireWall {
@@ -51,6 +52,10 @@ typedef struct FireWall {
 	int data_timeout_out;
 }firewall;
 
+/************ Package function ***********/
+
+void compute_ip_checksum(ip_stor *ip);
+
 /******** Functions for the rules list ******/
 int service_map(char s[]);
 
@@ -67,3 +72,7 @@ void str_to_ip(char *buf, uint8_t *ip);
 void print_ethernet(ethernet_stor *enthernet_head, char *dir);
 
 bool address_equals_ip(const uint8_t *source, const uint8_t *check);
+
+int convert_to_mac(char *readbuff, char *mac_dest);
+
+int convert_to_ip(char *buff,char *ip_dest);

@@ -9,6 +9,23 @@
 #include "walldefiner.h"
 #include "wallnetworker.h"
 
+/************** Package Function *****************/
+
+void compute_ip_checksum(ip_stor *ip)
+{
+	ip->checksum[0] = 0;
+	ip->checksum[1] = 0;
+
+	uint8_t *data = (uint8_t *)ip; //force to change the ip into uint8_t of data
+	uint32_t acc = 0xFFFF;
+	uint8_t len = ip->version;
+	len = len & 0xF;
+	len *= 4;
+
+	int i;
+	 
+}
+
 /************** Function for the rule list *******/
 void insert_rules(rules_ele *rule)
 {
