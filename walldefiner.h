@@ -34,11 +34,51 @@ typedef struct tcp_stor
 	uint8_t offset_reserve_flag;
 	uint8_t flags;
 	uint8_t window_size[2];
-	uint8_t checksump[2];
+	uint8_t checksum[2];
 	uint8_t urg_pointer[2];
 	uint8_t options_data;
 }tcp_stor;
 
+typedef struct psedo_tcp_stor
+{
+	uint8_t source_ip[4];
+	uint8_t destination_ip[4];
+	uint8_t protocol;
+	uint8_t reseved;
+	uint8_t tcp_length[2];
+	tcp_stor *tcp_head;
+}psedo_tcp_stor;
+
+typedef struct udp_stor {
+	uint8_t source_port[4];
+	uint8_t destination_port[4];
+	uint8_t length[2];
+	uint8_t checksum[2];//Ð£ÑéºÍ
+	uint8_t data;
+}udp_stor;
+
+typedef struct psedo_udp_stor
+{
+	uint8_t source_ip[4];
+	uint8_t destination_ip[4];
+	uint8_t protocol;
+	uint8_t reserved;
+	uint8_t udp_length[2];
+	udp_stor *udp_head;
+}psedo_udp_stor;
+
+typedef struct icmp_stor
+{
+	uint8_t type;
+	uint8_t code;
+	uint8_t checksum[2];
+	uint8_t reminder[4];
+}icmp_stor;
+
+typedef struct arp_stor
+{
+
+}arp_stor;
 //rules list and rules elements in order to creat a rules table to store the rules
 typedef struct rules_element
 {

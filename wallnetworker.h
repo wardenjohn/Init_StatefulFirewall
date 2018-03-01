@@ -54,14 +54,12 @@ typedef struct FireWall {
 
 /************ Package function ***********/
 
-void compute_ip_checksum(ip_stor *ip);
+void compute_ip_checksum(ip_stor *ip);//计算ip校验和
+
+void compute_tcp_checksum(tcp_stor *tcp);
 
 /******** Functions for the rules list ******/
 int service_map(char s[]);
-
-uint32_t unpack_4byte(const uint8_t *buf);//unpack the wen package
-
-uint16_t unpack_2byte(const uint8_t *buf);
 
 void insert_rules(rules_ele *rule);
 /************ Helping Function *************/
@@ -76,3 +74,11 @@ bool address_equals_ip(const uint8_t *source, const uint8_t *check);
 int convert_to_mac(char *readbuff, char *mac_dest);
 
 int convert_to_ip(char *buff,char *ip_dest);
+
+uint32_t unpack_4byte(const uint8_t *buf);//unpack the web package
+
+uint16_t unpack_2byte(const uint8_t *buf);//解包
+
+uint16_t pack_2byte(const uint8_t *buf);//打包
+
+uint32_t pack_4byte(const uint8_t *buf);

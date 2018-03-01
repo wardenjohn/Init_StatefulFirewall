@@ -24,6 +24,9 @@ int NEXT_UDP_PORT;
 
 int IS_ONLINE;
 
+rules_list rules_table;//the rules table to store the rules
+hash_node state_table[TABLE_LINE][TABLE_SIZE];
+uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];//class using the protocol/type 
 
 /*function to find if the device is detected*/
 bool is_devicefound(char *wait_to_check)
@@ -256,6 +259,38 @@ bool is_match(char *to_match,char *source)
 	return true;
 }
 
+uint16_t get_port(uint16_t port,int type,int dir)
+{
+	int count;
+	if (type == TCP) {//protocol:TCP check all port
+		for (count = 0; count < PORT_RANGE; count++) {
+			if (port_map[type][dir][count] == 0) break;
+			if (port_map[type][dir][count] == port) return port_map[type][(dir+1)%2][count];//Dont know why
+		}
+		if (i == PORT_RANGE) {
+			std::cout << "Out of the Port Range" << std::endl;
+			return 0;
+		}
+		port_map[type][dir][count] = port;
+		port_map[type][(dir + 1) % 2][count] = NEXT_TCP_PORT;
+		return NEXT_TCP_PORT++;
+	}
+	else if(type == UDP)
+	{
+		for (count = 0; count < PORT_RANGE; count++) {
+			if (port_map[type][dir][count] == 0) break;
+			if (port_map[type][dir][count] == port) return port_map[type][(dir + 1) % 2][count];
+		}
+		if (i == PORT_RANGE) {
+			std::cout << "Out of the Port Range" << std::endl;
+			return 0;
+		}
+		port_map[type][dir][count] = port;
+		port_map[type][(dir + 1) % 2][count] = NEXT_UDP_PORT;
+		return NEXT_UDP_PORT++;
+	}
+}
+
 int inital_rules(firewall *fw)
 {
 	for (int i = 0; i < TABLE_LINE; i++) {
@@ -380,12 +415,63 @@ int inital_rules(firewall *fw)
 //this function is for the protocal which is tcp
 int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_stor *tcp_header,int dir)
 {
-	if (dir == OUT) {//direction
+	if (dir == OUT) { //direction
 		memcpy(ethernet_header->source_mac,fw->switch_mac_address,sizeof(fw->switch_mac_address));
 		memcpy(ethernet_header->destnation_mac,fw->route_mac_address,sizeof(fw->route_mac_address));
 		memcpy(ip_header->source_ip,fw->switch_ip_bin,sizeof(fw->switch_ip_bin));
-		
+		compute_ip_checksum(ip_header);
+
+		uint16_t new_source_port = get_port(unpack_2byte(tcp_header->source_port),TCP,dir);
+		new_source_port = pack_2byte((uint8_t *)&new_source_port);
+		memcpy(tcp_header->source_port,(uint8_t *)&new_source_port,sizeof(uint16_t));
+
+		psedo_tcp_stor *psedo_tcp_head = (psedo_tcp_stor *)malloc(sizeof(psedo_tcp_stor));
+
+		memcpy(psedo_tcp_head->source_ip, ip_header->source_ip, sizeof(ip_header->source_ip));
+		memcpy(psedo_tcp_head->destination_ip, ip_header->destnation_ip, sizeof(ip_header->destnation_ip));
+		psedo_tcp_head->reseved = 0;//means still not reaseved
+		psedo_tcp_head->protocol = ip_header->protocol;
+
+		uint16_t len = unpack_2byte(ip_header->total_length) - ((ip_header->version & 0x0F) * 4);
+		psedo_tcp_head->tcp_length[0] = ((uint8_t)(len >> 8)) & 0xFF;
+		psedo_tcp_head->tcp_length[1] = (uint8_t)(len) & 0xFF; //I dont know why there should & 0xFF
+
+		psedo_tcp_head->tcp_head = (tcp_stor *)malloc(len);
+		memcpy(psedo_tcp_head->tcp_head, tcp_header, sizeof(len));
+		compute_tcp_checksum(psedo_tcp_head);
+		memcpy(tcp_header->checksum,psedo_tcp_head->tcp_head->checksum,sizeof(psedo_tcp_head->tcp_head->checksum));
+		free(psedo_tcp_head->tcp_head);
+		free(psedo_tcp_head);
 	}
+	else if (dir == IN) {
+		memcpy(ethernet_header->source_mac, fw->firewall_mac_address, sizeof(fw->firewall_mac_address));
+		memcpy(ethernet_header->destnation_mac, fw->virtual_mac_address, sizeof(fw->virtual_mac_address));
+		memcpy(ip_header->destnation_ip,fw->virtual_ip_bin,sizeof(fw->virtual_ip_bin));
+		compute_ip_checksum(ip_header);
+
+		uint16_t new_destination_port = get_port(unpack_2byte(tcp_header),TCP,dir);
+		new_destination_port = pack_2byte((uint8_t*)&new_destination_port);
+		memcpy(tcp_header->destination_port,(uint8_t*)&new_destination_port,sizeof(uint16_t));
+	
+		psedo_tcp_stor *psedo_tcp_head = (psedo_tcp_stor*)malloc(sizeof(psedo_tcp_stor));
+		memcpy(psedo_tcp_head->source_ip, ip_header->source_ip, sizeof(ip_header->source_ip));
+		memcpy(psedo_tcp_head->destination_ip, ip_header->destnation_ip, sizeof(ip_header->destnation_ip));
+
+		psedo_tcp_head->protocol = ip_header->protocol;
+		psedo_tcp_head->reseved = 0;
+
+		uint16_t length = unpack_2byte(ip_header->total_length) - ((ip_header->version & 0x0F) * 4);
+		psedo_tcp_head->tcp_length[0] = ((uint8_t)(length >> 8)) & 0xFF;
+		psedo_tcp_head->tcp_length[1] = (uint8_t)(length) & 0xFF;
+
+		psedo_tcp_head->tcp_head = (tcp_header*)malloc(sizeof(length));
+		memcpy(psedo_tcp_head->tcp_head, tcp_header, length);
+		compute_ip_checksum(psedo_tcp_head);
+		memcpy(tcp_header->checksum, psedo_tcp_head->tcp_head->checksum, sizeof(tcp_header->checksum));
+		free(psedo_tcp_head->tcp_head);
+		free(psedo_tcp_head);
+	}
+	return 1;
 }
 
 ////////////////////////////////////////////////////

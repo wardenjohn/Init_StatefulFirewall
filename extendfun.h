@@ -51,7 +51,34 @@ void list_dev()
 /****************Check network connection ***********************/
 void check_connection()
 {
+	std::cout << "This is a function to check if the network is unblocked"<<std::endl;
+	
+	std::fstream webfile;
+	webfile.open("connection.txt", std::ios::in);
 
+	if (!webfile.is_open()) {
+		std::cout << "can not find the connection file " << std::endl;
+		std::cout << "To make a new connection file , you can rebuild a file using the name 'connection.txt' and input the ip address of the website to check" << std::endl;
+		return;
+	}
+
+	std::string ip;
+	int commLEN = 1024;
+	while (getline(website, ip)) {
+		char comm[commLEN];
+		sprintf(comm,"ping %s",ip.c_str());
+		system(comm);
+
+		char goon;
+		std::cout << "goon next ip address?(y/n)" << std::endl;
+		std::cin >> goon;
+		if (goon == 'y' || goon == 'Y') {
+
+		}
+		else {
+			break;
+		}
+	}
 }
 
 /****************Stop or recover the network*********************/
