@@ -1,6 +1,9 @@
 # Init_StatefulFirewall
 #Introduction of Stateful Firewall
 
+#--stick--
+Remember to check the function of "check_connection" is working
+
 #Forhead knowledge
 TCP: TCP is make up of some prarameter in #--4
 UDP: UDP header is make up of 4 area (source port / destination port / the length of the data / checksum)
@@ -50,7 +53,7 @@ typedef struct tcp_stor
 You can serch on the internet about the TCP.This structor is a TCP Header type. 
 Here are some information I picked from Baidu.com in Chinese:
 
-TCP的首部格式图右图所示：
+TCP的首部格式图：
 ---Source Port是源端口，16位。
 TCP首部
 TCP首部

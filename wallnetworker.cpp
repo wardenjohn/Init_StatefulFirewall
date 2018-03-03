@@ -132,6 +132,12 @@ void compute_udp_checksum(psedo_udp_stor *psedo_udp)
 	memcpy(psedo_udp->udp_head->checksum, ax, sizeof(ax));
 }
 
+void packet_inject(pcap_t *p, const void *packet, size_t len, char* dir)
+{
+	if (ONLINE) {
+		if(pcap_inject())
+	}
+}
 /************** Function for the rule list *******/
 void insert_rules(rules_ele *rule)
 {
@@ -149,6 +155,383 @@ void insert_rules(rules_ele *rule)
 	}
 }//insert a rule node into the rule table
 
+/************* Hash Functions ******************/
+
+int hash_ip_port(ip_port_group ip_port)
+{
+	int result = 17;//why
+	result = 31 * result + ip_port.source_ip;
+	result = 31 * result + ip_port.destination_ip;
+	if (result < 0) result = result*-1;
+	return result%TABLE_SIZE;
+}
+
+int state_hash(void* state_A, int server_number)
+{
+	if (server_number == 0) { //TCP
+		tcp_status *tcp_A = (tcp_status*)state_A;
+		return hash_ip_port(tcp_A->ip_port);
+	}
+	else if(server_number == 1){//UDP
+		udp_status *udp_A = (udp_status*)state_A;
+		return hash_ip_port(udp_A->ip_port);
+	}
+	else if (server_number == 2) {//ICMP
+		icmp_status *icmp_A = (icmp_status*)state_A;
+		return hash_ip_port(icmp_A->ip);
+	}
+	else {
+		std::cout << "Wrong service number !" << std::endl;
+		return -1;
+	}
+}
+
+/************** Function for the State table *****/
+
+int out_dated_entry(void* stats_A, void* stats_B, int serv_number)
+{
+	struct timeval diff;
+	if (serv_number == 0) {
+		tcp_status *tcp_A = (tcp_status*)stats_A;
+		tcp_status *tcp_B = (tcp_status*)stats_B;
+		timersub(&tcp_A->event_time, &tcp_B->event_time, &diff);
+		uint64_t milliseconds = (diff.tv_sec*(uint64_t)1000) + (diff.tv_usec / 1000);
+		if (milliseconds > 6000 && tcp_B->last_state == 4) return 1; //1 minutes and close
+	}
+	else if (serv_number == 1) {
+		udp_status *udp_A = (udp_status*)stats_A;
+		udp_status *udp_B = (udp_status*)stats_B;
+		timersub(&udp_A->event_time, &udp_B->event_time, &diff);
+		uint64_t milliseconds = (diff.tv_sec*(uint64_t)1000) + (diff.tv_usec / 1000);
+		if (milliseconds > 6000) return 1;
+	}
+	else if (serv_number == 2) {
+		icmp_status *icmp_A = (icmp_status*)stats_A;
+		icmp_status *icmp_B = (icmp_status*)stats_B;
+		timersub(&icmp_A->event_time, &icmp_B->event_time, &diff);
+		uint64_t milliseconds = (diff.tv_sec*(uint64_t)1000) + (diff.tv_usec / 1000);
+		if (milliseconds > 6000) return 1;
+	}
+	return 0;
+}
+
+void* state_table_find(hash_node *hash_table, void* status_A, int server_number)
+{
+	int hash=state_hash(status_A,server_number);
+	int length = hash_table[hash].length;
+	if (length == 0)return NULL;
+	hash_ele *hash_pointer = hash_table[hash].head;
+	hash_ele *hash_prev = NULL;
+	
+	while (hash_pointer != NULL) {
+		if (out_dated_entry(status_A, hash_pointer->stats, server_number)) {
+			if (hash_prev == NULL) { //no previes pointer
+				hash_table[hash].head = hash_pointer->next;
+			}
+			else {
+				hash_prev->next = hash_pointer->next;
+			}
+			hash_table[hash].length--;
+			free(hash_pointer->stats);
+			free(hash_pointer);
+			if (hash_prev == NULL)
+				hash_pointer = hash_table[hash].head;
+			else
+				hash_pointer = hash_prev;
+			if (hash_pointer == NULL)
+				return NULL;
+		}
+		else {
+			if (match_status(status_A, hash_pointer->stats, server_number))
+				return hash_pointer->stats;
+		}
+		hash_pointer = (hash_ele*)hash_pointer->next;
+	}
+	return NULL;
+}
+
+int match_status(void* status_A, void* status_B, int type) 
+{
+	if (type == 0) { //tcp
+		tcp_status *tcp_A = (tcp_status*)status_A;
+		tcp_status *tcp_B = (tcp_status*)status_B;
+		return ip_port_group_issame(tcp_A->ip_port, tcp_B->ip_port);
+	}
+	else if (type == 1) {//udp
+		udp_status *udp_A = (udp_status*)status_A;
+		udp_status *udp_B = (udp_status*)status_B;
+		return ip_port_group_issame(udp_A->ip_port, udp_B->ip_port);
+	}
+	else if (type == 2) {//icmp
+		icmp_status *icmp_A = (icmp_status*)status_A;
+		icmp_status *icmp_B = (icmp_status*)status_B;
+		return ip_port_group_issame(icmp_A->ip, icmp_B->ip);
+	}
+	else {//syntax error
+		printf("Wrong compare !");
+		return 0;
+	}
+}
+
+int TCP_check_state(tcp_status *connection, tcp_status* A, uint8_t flags, int inv)
+{
+	int FIN = flags&1;
+	int SYN = flags&(1 << 1);
+	int RST = flags&(1 << 2);
+	int PSH = flags&(1 << 3);
+	int ACK = flags&(1 << 4);
+	int URG = flags&(1 << 5);
+
+	if (connection == NULL) { //if this is a new connection
+		if (RST || FIN || ACK || PSH || !SYN)
+			return 0;
+
+		A->last_state = 0;//initialize the new state
+		A->fin_A = 0;
+		A->fin_B = 0;
+	}
+	else if (inv == 0) {//if inv == 0 , it means that  
+		//This is a A -> B connection
+		if (connection->last_state == 0) {//send SYN
+			if (SYN&&ACK)
+				return 0;
+			else if (SYN)
+				A->last_state = 0; //resend SYN
+			else if (ACK && !FIN)
+				return 0;
+			else if (FIN)
+				return 0;
+			else if (RST)
+				A->last_state = 4;//close the connection
+		}
+		else if (connection->last_state == 1) {//received SYNACK
+			if (SYN&&ACK)
+				return 0;
+			else if (SYN)
+				return 0;
+			else if (ACK && !FIN)
+				A->last_state = 2;//send final 3-way handshake ACK
+			else if (FIN)
+				return 0;
+			else if (RST)
+				A->last_state = 4;//close the connection
+		}
+		else if (connection->last_state == 2) {//send ACK
+			if (SYN && ACK) {
+				return 0;
+			}
+			else if (SYN) {
+				return 0;
+			}
+			else if (ACK && !FIN) {
+				A->last_state = 2;	// Send data ACK.
+			}
+			else if (FIN) {
+				A->last_state = 3; // Start FIN
+				A->fin_A = 1;
+				A->fin_B = 0;
+			}
+			else if (RST) {
+				A->last_state = 4; // Close Connection
+			}
+		}
+		else if (connection->last_state == 3) {//FIN seen
+			if (A->fin_A) { // Issued by A
+				if (SYN && ACK) {
+					return 0;
+				}
+				else if (SYN) {
+					return 0;
+				}
+				else if (ACK && !FIN) {
+					A->last_state = 2;	// Send ACK for B data.
+				}
+				else if (FIN) {
+					A->last_state = 3; // Resend FIN
+				}
+				else if (RST) {
+					A->last_state = 4; // Close Connection
+				}
+			}
+			else {
+				if (SYN && ACK) {
+					return 0;
+				}
+				else if (SYN) {
+					return 0;
+				}
+				else if (ACK && !FIN) {
+					A->last_state = 2;	// Send Data
+				}
+				else if (FIN) {
+					A->last_state = 4; // Send FIN and close
+				}
+				else if (RST) {
+					A->last_state = 4; // Close Connection
+				}
+			}
+		}
+		else if (connection->last_state == 4) {
+			if (SYN && ACK) {
+				return 0;
+			}
+			else if (SYN) {
+				A->last_state = 0;   // Start new connection
+				A->fin_A = 0;
+				A->fin_B = 0;
+			}
+			else if (ACK && !FIN) {
+				return 0;
+			}
+			else if (FIN) {
+				return 0;
+			}
+			else if (RST) {
+				return 0;
+			}
+		}
+		else {
+			printf("Wrong connection state of connection ! Error situtaion : function:TCP_check_state\n");
+		}
+	}
+	else {//else it means that
+		// B -> A packet
+		if (connection->last_state == 0) { 				// Received SYN 
+			if (SYN && ACK) {
+				A->last_state = 1; // Send SYNACK
+			}
+			else if (SYN) {
+				return 0;
+			}
+			else if (ACK && !FIN) {
+				return 0;
+			}
+			else if (FIN) {
+				return 0;
+			}
+			else if (RST) {
+				A->last_state = 4;	// Close connection
+			}
+		}
+		else if (connection->last_state == 1) { // Sent SYNACK
+			if (SYN && ACK) {
+				A->last_state = 1; // Resend SYNACK
+			}
+			else if (SYN) {
+				return 0;
+			}
+			else if (ACK && !FIN) {
+				return 0;
+			}
+			else if (FIN) {
+				return 0;
+			}
+			else if (RST) {
+				A->last_state = 4; // Close Connection
+			}
+		}
+		else if (connection->last_state == 2) { // Received ACK
+			if (SYN && ACK) {
+				return 0;
+			}
+			else if (SYN) {
+				return 0;
+			}
+			else if (ACK && !FIN) {
+				A->last_state = 2;	// Send data ACK.
+			}
+			else if (FIN) {
+				A->last_state = 3; // Start FIN
+				A->fin_A = 0;
+				A->fin_B = 1;
+			}
+			else if (RST) {
+				A->last_state = 4; // Close Connection
+			}
+		}
+		else if (connection->last_state == 3) { // FIN seen.
+			if (A->fin_B) { // Issued by B
+				if (SYN && ACK) {
+					return 0;
+				}
+				else if (SYN) {
+					return 0;
+				}
+				else if (ACK && !FIN) {
+					A->last_state = 2;	// Send ACK for A data.
+				}
+				else if (FIN) {
+					A->last_state = 3; // Resend FIN
+				}
+				else if (RST) {
+					A->last_state = 4; // Close Connection
+				}
+			}
+			else {
+				if (SYN && ACK) {
+					return 0;
+				}
+				else if (SYN) {
+					return 0;
+				}
+				else if (ACK && !FIN) {
+					A->last_state = 2;	// Send Data
+				}
+				else if (FIN) {
+					A->last_state = 4; // Send FIN and close
+				}
+				else if (RST) {
+					A->last_state = 4; // Close Connection
+				}
+			}
+		}
+		else if (connection->last_state == 4) { // Closed connection.
+			if (SYN && ACK) {
+				return 0;
+			}
+			else if (SYN) {
+				return 0;       // B can't restart connection.
+			}
+			else if (ACK && !FIN) {
+				return 0;
+			}
+			else if (FIN) {
+				return 0;
+			}
+			else if (RST) {
+				return 0;
+			}
+		}
+	}
+
+#ifdef DEBUGGING
+
+#endif // DEBUGGING
+
+}
+
+void state_table_update(void* table_entry, void* stats_A, int serv_number)
+{
+	if (serv_number == 0) {//tcp
+		tcp_status* tcp_A = (tcp_status*)stats_A;
+		tcp_status* pointer = (tcp_status*)table_entry;
+		pointer->fin_A = tcp_A->fin_A;
+		pointer->fin_B = tcp_A->fin_B;
+		pointer->ip_port = tcp_A->ip_port;
+		pointer->last_state = tcp_A->last_state;
+		pointer->event_time = tcp_A->event_time;
+	}
+	else if (serv_number==1) {//udp
+		udp_status* udp_A = (udp_status*)stats_A;
+		udp_status* pointer = (udp_status*)table_entry;
+		pointer->event_time = udp_A->event_time;
+	}
+	else if (serv_number == 2) {//icmp
+		icmp_status* icmp_A = (icmp_A*)stats_A;
+		icmp_status* pointer = (icmp_A*)table_entry;
+		pointer->event_time = icmp_A->event_time;
+	}
+}
 /************* Helping function *************/
 int service_map(char s[])
 {
@@ -206,6 +589,12 @@ bool address_address_equals_ip(const uint8_t *source, const uint8_t *check)
 	return true;
 }
 
+int ip_port_group_issame(ip_port_group A, ip_port_group B)
+{
+	if (A.destination_port == B.destination_port&&A.destination_ip == B.destination_ip&&A.source_ip == B.source_ip&&A.source_port == B.source_port)
+		return 1;
+	return 0;
+}
 /*******************Debug function***********************/
 void print_ethernet(ethernet_stor *ethernet_head, char *dir)
 {

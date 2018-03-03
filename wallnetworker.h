@@ -58,10 +58,31 @@ void compute_ip_checksum(ip_stor *ip);//计算ip校验和
 
 void compute_tcp_checksum(tcp_stor *tcp);
 
+void packet_inject(pcap_t *p, const void *packet, size_t len, char* dir);
 /******** Functions for the rules list ******/
 int service_map(char s[]);
 
 void insert_rules(rules_ele *rule);
+
+/*********** State table Functions **********/
+
+void* state_table_find(hash_node *hash_table, void* status_A, int server_number);
+
+void state_table_update(void* table_entry, void* stats_A, int serv_number);
+
+int out_dated_entry(void* stats_A, void* stats_B, int serv_number);
+
+int match_status(void* status_A,void* status_B,int type);
+
+int TCP_check_state(tcp_status *connection ,tcp_status* A,uint8_t flags,int inv);
+/*********** Hash Functions **************/
+
+int hash_ip_port(ip_port_group ip_port);
+
+int hash_ip(ip_group ip);
+
+int state_hash(void* state_A,int server_number);
+
 /************ Helping Function *************/
 bool is_match(char *to_match, char *source);
 
@@ -82,3 +103,5 @@ uint16_t unpack_2byte(const uint8_t *buf);//解包
 uint16_t pack_2byte(const uint8_t *buf);//打包
 
 uint32_t pack_4byte(const uint8_t *buf);
+
+int ip_port_group_issame(ip_port_group A, ip_port_group B);

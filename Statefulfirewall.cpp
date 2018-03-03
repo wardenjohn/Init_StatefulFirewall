@@ -414,7 +414,7 @@ int inital_rules(firewall *fw)
 
 //this function is for the protocal which is tcp
 int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_stor *tcp_header,int dir)
-{
+{//dir --> direction
 	if (dir == OUT) { //direction
 		memcpy(ethernet_header->source_mac,fw->switch_mac_address,sizeof(fw->switch_mac_address));
 		memcpy(ethernet_header->destnation_mac,fw->route_mac_address,sizeof(fw->route_mac_address));
@@ -530,7 +530,16 @@ int listen_in(firewall *fw)
 				A.event_time = current_time;
 				A_inv.event_time = current_time;
 
+				NAT_TCP(fw, enthernet_header, ip_header, tcp_header, OUT);
 
+				table_entry = state_table_find(state_table[TCP],(void*)&A_inv,TCP);
+				if (table_entry == NULL) {
+					if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A_inv, tcp_header->flags, 1)) {
+						return 0;
+					}
+					state_table_update(table_entry,(void*)&A_inv,TCP);
+
+				}
 			}
 		}
 	}

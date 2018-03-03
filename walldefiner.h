@@ -130,6 +130,15 @@ typedef struct tcp_status
 
 }tcp_status;
 
+typedef struct udp_status {
+	ip_port_group ip_port;
+	struct timeval event_time;
+}udp_status;
+
+typedef struct icmp_status {
+	ip_group ip;
+	struct timeval event_time;
+}icmp_status;
 ///////////////////////////////////////////////////
 //hash node definder
 typedef struct hash_element
