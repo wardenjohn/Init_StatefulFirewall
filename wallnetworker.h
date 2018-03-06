@@ -25,7 +25,7 @@ extern int UDP_PORT;
 
 extern rules_list rules_table;//the rules table to store the rules
 extern hash_node state_table[TABLE_LINE][TABLE_SIZE];
-uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];
+extern uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];
 
 typedef struct FireWall {
 	uint8_t virtual_mac_address[MAC_NUM];

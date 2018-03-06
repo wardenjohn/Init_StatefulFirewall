@@ -24,9 +24,11 @@ int NEXT_UDP_PORT;
 
 int IS_ONLINE;
 
-//rules_list rules_table;//the rules table to store the rules
-//hash_node state_table[TABLE_LINE][TABLE_SIZE];
-//uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];//class using the protocol/type 
+int ONLINE;
+
+rules_list rules_table;//the rules table to store the rules
+hash_node state_table[TABLE_LINE][TABLE_SIZE];
+uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];//class using the protocol/type 
 
 /*function to find if the device is detected*/
 bool is_devicefound(char *wait_to_check)
