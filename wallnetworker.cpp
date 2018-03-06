@@ -10,6 +10,12 @@
 #include "wallnetworker.h"
 
 /************** Package Function *****************/
+arp_stor* copy_arp_head(arp_stor* arp_header)// Mind some bug if happend
+{
+	arp_stor* arp_head_cpy = new(arp_stor);
+	memcpy(arp_head_cpy, arp_header, sizeof(arp_stor));
+	return arp_head_cpy;
+}
 
 void compute_ip_checksum(ip_stor *ip)
 {
@@ -135,7 +141,10 @@ void compute_udp_checksum(psedo_udp_stor *psedo_udp)
 void packet_inject(pcap_t *p, const void *packet, size_t len, char* dir)
 {
 	if (ONLINE) {
-		if(pcap_inject())
+		if (pcap_inject(p, packet, len) == -1) {
+			printf("Error inject %s / %s \n", pacp_geterr(p), dir);
+			exit(1);
+		}
 	}
 }
 /************** Function for the rule list *******/
@@ -155,6 +164,54 @@ void insert_rules(rules_ele *rule)
 	}
 }//insert a rule node into the rule table
 
+int check_rule(int dir, int service, uint32_t src_ip, uint32_t dst_ip, uint16_t src_port, uint16_t dst_port)
+{
+	int ret;
+	if (dir == IN) ret = 0;
+	if (dir == OUT)ret = 1;
+
+	rules_ele *pointer;
+	pointer = rules_table.head;
+	while (pointer != NULL) {
+		if (service == TCP || service == UDP) {
+			if (pointer->direction == dir) {
+				if (pointer->rules == ALLOW) {
+					if ((pointer->service == service || pointer->service == ANY) && (pointer->source_ip==src_ip||pointer->source_ip_any)
+						 && (pointer->destination_ip==dst_ip || pointer->destination_ip_any) && (pointer->source_port == src_port || pointer->source_port_any)
+					     && (pointer->destination_port==dst_port || pointer->destination_port_any))
+					{
+						ret = 1;
+					}
+				}
+				else if (pointer->rules == BLOCK) {
+					if ((pointer->service == service || pointer->service == ANY) && (pointer->source_ip == src_ip || pointer->source_ip_any)
+						&& (pointer->destination_ip == dst_ip || pointer->destination_ip_any) && (pointer->source_port == src_port || pointer->source_port_any)
+						&& (pointer->destination_port == dst_port || pointer->destination_port_any)) {
+						ret = 0;
+					}
+				}
+			}
+		}
+		else if(service == ICMP) {
+			if (pointer->direction == dir) {
+				if (pointer->rules == ALLOW) {
+					if ((pointer->service == service || pointer->service == ANY) && (pointer->source_ip==src_ip||pointer->source_ip_any)
+						&&(pointer->destination_ip==dst_ip||pointer->destination_ip_any)) {
+						ret = 1;
+					}
+				}
+				else if (pointer->rules == BLOCK) {
+					if ((pointer->service == service || pointer->service == ANY) && (pointer->source_ip == src_ip || pointer->source_ip_any)
+						&& (pointer->destination_ip == dst_ip || pointer->destination_ip_any)) {
+						ret = 0;
+					}
+				}
+			}
+		}
+		pointer = pointer->next;
+	}
+	return ret;
+}
 /************* Hash Functions ******************/
 
 int hash_ip_port(ip_port_group ip_port)
@@ -510,11 +567,56 @@ int TCP_check_state(tcp_status *connection, tcp_status* A, uint8_t flags, int in
 
 }
 
+void state_table_insert(hash_node *hash_table, void* stats_A, int serv_number)
+{
+	int hash = state_hash(stats_A, serv_number);
+	hash_ele* new_node = (hash_ele*)malloc(sizeof(hash_ele));
+	if (new_node == NULL) {
+		printf("Can not get the memery of the hash node , Error function : state_table_insert");
+		return;
+	}
+
+	if (serv_number == 0) {//TCP
+		tcp_status *tcp_A = (tcp_status*)stats_A;
+		tcp_status *new_tcp = (tcp_status*)malloc(sizeof(tcp_status));
+		
+		new_tcp->ip_port = tcp_A->ip_port;
+		new_tcp->last_state = tcp_A->last_state;
+		new_tcp->event_time = tcp_A->event_time;
+		new_tcp->fin_A = tcp_A->fin_A;
+		new_tcp->fin_B = tcp_A->fin_B;
+		new_node->stats = new_tcp;
+	}
+	else if (serv_number == 1) {//UDP
+		udp_status *udp_A = (udp_status*)stats_A;
+		udp_status *new_udp = (udp_status*)malloc(sizeof(udp_status));
+
+		new_udp->ip_port = udp_A->ip_port;
+		new_udp->event_time = udp_A->event_time;
+		new_node->stats = new_udp;
+	}
+	else if (service_number == 2) {//ICMP
+		icmp_status *icmp_A = (icmp_status*)stats_A;
+		icmp_status *new_icmp = (icmp_status*)malloc(sizeof(icmp_status));
+		
+		new_icmp->ip = icmp_A->ip;
+		new_icmp->event_time = icmp_A->event_time;
+		new_node->stats = new_icmp;
+	}
+
+	new_node->next = hash_table[hash].head;
+	hash_table[hash].head = new_node;
+	hash_table[hash].length++;
+	return;
+}
+
+
 void state_table_update(void* table_entry, void* stats_A, int serv_number)
 {
 	if (serv_number == 0) {//tcp
 		tcp_status* tcp_A = (tcp_status*)stats_A;
 		tcp_status* pointer = (tcp_status*)table_entry;
+		
 		pointer->fin_A = tcp_A->fin_A;
 		pointer->fin_B = tcp_A->fin_B;
 		pointer->ip_port = tcp_A->ip_port;
@@ -580,7 +682,7 @@ uint32_t pack_4byte(const uint8_t *buf)
 	return htonl(aux);
 }
 
-bool address_address_equals_ip(const uint8_t *source, const uint8_t *check)
+bool address_equals_ip(const uint8_t *source, const uint8_t *check)
 {
 	for (int i = 0; i < IP_SIZE; i++)
 		if (source[i] != check[i])
@@ -595,6 +697,16 @@ int ip_port_group_issame(ip_port_group A, ip_port_group B)
 		return 1;
 	return 0;
 }
+
+int address_equal_ip(const uint8_t *a, const uint8_t *b)
+{
+	for (int i = 0; i < IP_SIZE; i++)
+		if (a[i] != b[i])
+			return 0;
+
+	return 1;
+}
+
 /*******************Debug function***********************/
 void print_ethernet(ethernet_stor *ethernet_head, char *dir)
 {

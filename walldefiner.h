@@ -77,7 +77,15 @@ typedef struct icmp_stor
 
 typedef struct arp_stor
 {
-
+	uint8_t datalink_type[2];
+	uint8_t protocol_type[2];
+	uint8_t hardware_len;
+	uint8_t protocol_len;
+	uint8_t operation[2];
+	uint8_t sender_hardware_addr[6];
+	uint8_t sender_protocol_addr[4];
+	uint8_t target_hardware_addr[6];
+	uint8_t target_protocol_addr[4];
 }arp_stor;
 //rules list and rules elements in order to creat a rules table to store the rules
 typedef struct rules_element

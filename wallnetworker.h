@@ -53,10 +53,13 @@ typedef struct FireWall {
 }firewall;
 
 /************ Package function ***********/
+arp_stor* copy_arp_head(arp_stor* arp_header);
 
 void compute_ip_checksum(ip_stor *ip);//计算ip校验和
 
 void compute_tcp_checksum(tcp_stor *tcp);
+
+void compute_udp_checksum(psedo_udp_stor* pseudo_udp);
 
 void packet_inject(pcap_t *p, const void *packet, size_t len, char* dir);
 /******** Functions for the rules list ******/
@@ -64,11 +67,16 @@ int service_map(char s[]);
 
 void insert_rules(rules_ele *rule);
 
+int address_equal_ip(const uint8_t *a, const uint8_t *b);
+
+int check_rule(int dir, int service, uint32_t src_ip, uint32_t dst_ip, uint16_t src_port, uint16_t dst_port);
 /*********** State table Functions **********/
 
 void* state_table_find(hash_node *hash_table, void* status_A, int server_number);
 
 void state_table_update(void* table_entry, void* stats_A, int serv_number);
+
+void state_table_insert(hash_node* hash_table, void* stats_A, int serv_number);
 
 int out_dated_entry(void* stats_A, void* stats_B, int serv_number);
 

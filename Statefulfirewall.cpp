@@ -474,6 +474,107 @@ int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_
 	return 1;
 }
 
+int NAT_UDP(firewall *fw, ethernet_stor *ethernet_header, ip_stor *ip_header, udp_stor *udp_heaeder, int dir)
+{
+	if (dir == OUT) {
+		memcpy(ethernet_header->source_mac, fw->switch_mac_address, sizeof(fw->switch_mac_address));
+		memcpy(ethernet_header->destnation_mac, fw->route_mac_address, sizeof(fw->route_mac_address));
+		memcpy(ip_header->source_ip, fw->switch_ip_bin, sizeof(fw->switch_ip_bin));
+		compute_ip_checksum(ip_header);
+
+		uint16_t new_sorce_port = get_port(unpack_2byte(udp_heaeder), UDP, dir);
+		new_sorce_port = pack_2byte((uint8_t*)*new_sorce_port);
+		memcpy(udp_heaeder->source_port,(uint8_t)&new_sorce_port,sizeof(uint16_t));
+
+		psedo_udp_stor *psedo_upd_header = (psedo_udp_stor*)malloc(sizeof(psedo_udp_stor));
+
+		memcpy(psedo_upd_header->source_ip, ip_header->source_ip, sizeof(ip_header->source_ip));
+		memcpy(psedo_upd_header->destination_ip, ip_header->destnation_ip, sizeof(ip_header->destnation_ip));
+		psedo_upd_header->reserved = 0;
+		psedo_upd_header->protocol = ip_header->protocol;
+		uint16_t length = unpack_2byte(udp_heaeder->length);
+		psedo_upd_header->udp_length[0] = udp_heaeder->length[0];
+		psedo_upd_header->udp_length[1] = udp_heaeder->length[1];
+
+		psedo_upd_header->udp_head = (udp_heaeder*)malloc(length);
+		memcpy(pseudo_udp_header->udp_header, udp_header, len);
+		
+		compute_udp_checksum(psedo_upd_header);
+		memcpy(udp_heaeder->checksum,psedo_upd_header->udp_head->checksum,sizeof(udp_heaeder->checksum));
+		free(psedo_upd_header->udp_head);
+		free(psedo_upd_header);
+	}
+	else if (dir == IN) {
+		memcpy(ethernet_header->source_mac, fw->firewall_mac_address, sizeof(fw->firewall_mac_address));
+		memcpy(ethernet_header->destnation_mac, fw->virtual_mac_address, sizeof(fw->virtual_mac_address));
+		memcpy(ip_header->destnation_ip, fw->virtual_ip_bin, sizeof(fw->virtual_ip_bin));
+		compute_ip_checksum(ip_header);
+
+		uint16_t new_destination_port = get_port(unpack_2byte(udp_heaeder->destination_port), UDP, dir);
+		new_destination_port = pack_2byte((uint8_t*)&new_destination_port);
+		memcpy(udp_heaeder->destination_port, (uint8_t)&new_destination_port, sizeof(uint16_t));
+
+		psedo_udp_stor *psedo_udp_head = (psedo_udp_stor*)malloc(sizeof(psedo_udp_stor));
+		memcpy(psedo_udp_head->source_ip, ip_header->source_ip, sizeof(ip_header->source_ip));
+		memcpy(psedo_udp_head->destination_ip, ip_header->destnation_ip, sizeof(ip_header->destnation_ip));
+		psedo_udp_head->reserved = 0;
+		psedo_udp_head->protocol = ip_header->protocol;
+		uint16_t length = unpack_2byte(udp_heaeder->length);
+		psedo_udp_head->udp_length[0] = udp_heaeder->length[0];
+		psedo_udp_head->udp_length[1] = udp_heaeder->length[1];
+
+		psedo_udp_head->udp_head = (udp_stor*)malloc(length);
+		memcpy(psedo_udp_head->udp_head,udp_heaeder,sizeof(length));
+		compute_udp_checksum(psedo_udp_head);
+		memcpy(udp_heaeder->checksum,psedo_udp_head->udp_head->checksum,sizeof(udp_heaeder->checksum));
+		free(psedo_udp_head->udp_head);
+		free(psedo_udp_head);
+	}
+	else {
+		printf("Wrong Direction Syntax ! Error situation function : NAT_UDP\n");
+		return -1;
+	}
+
+	return 1;
+}
+
+int NAT_ICMP(firewall *fw, ethernet_stor *ethernet_header, ip_stor *ip_header, int dir)
+{
+	if (dir == OUT) {
+		memcpy(ethernet_header->source_mac,fw->switch_mac_address,sizeof(fw->switch_mac_address));
+		memcpy(ethernet_header->destnation_mac, fw->route_mac_address, sizeof(fw->route_mac_address));
+		memcpy(ip_header->source_ip,fw->switch_ip_bin,sizeof(fw->switch_ip_bin));
+		compute_ip_checksum(ip_header);
+	}
+	else if (dir == IN) {
+		memcpy(ethernet_header->source_mac,fw->firewall_mac_address,sizeof(fw->firewall_mac_address));
+		memcpy(ethernet_header->destnation_mac,fw->virtual_mac_address,sizeof(fw->virtual_mac_address));
+		memcpy(ip_header->destnation_ip, fw->virtual_ip_bin, sizeof(fw->virtual_ip_bin));
+		compute_ip_checksum(ip_header);
+	}
+	else {
+		printf("Wrong Direction Syntax ! Error Situation : function NAT_ICMP\n");
+		return -1;
+	}
+	return 1;
+}
+
+void bulid_ARP_reply(firewall *fw,arp_stor *arp_header)
+{
+	arp_stor* arp_head_cpy = copy_arp_head(arp_header);
+	uint16_t arp_operation = 2;
+	uint8_t arp_op_reply[2];
+	arp_op_reply[0] = 0;
+	arp_op_reply[1] = (uint8_t)arp_operation & 0xFF;
+
+	memcpy(arp_header->operation,arp_op_reply,sizeof(arp_op_reply));
+	memcpy(arp_header->sender_hardware_addr,fw->firewall_mac_address,sizeof(fw->firewall_mac_address));
+	memcpy(arp_header->sender_protocol_addr, arp_head_cpy->target_protocol_addr,sizeof(arp_head_cpy->target_protocol_addr));
+	memcpy(arp_header->target_hardware_addr, arp_head_cpy->sender_hardware_addr,sizeof(arp_head_cpy->sender_hardware_addr));
+	memcpy(arp_header->target_protocol_addr, arp_head_cpy->sender_protocol_addr,sizeof(arp_head_cpy->sender_protocol_addr));
+	
+	free(arp_head_cpy);
+}
 ////////////////////////////////////////////////////
 //main function listen in the data
 int listen_in(firewall *fw)
@@ -532,23 +633,333 @@ int listen_in(firewall *fw)
 
 				NAT_TCP(fw, enthernet_header, ip_header, tcp_header, OUT);
 
-				table_entry = state_table_find(state_table[TCP],(void*)&A_inv,TCP);
-				if (table_entry == NULL) {
+				table_entry = state_table_find(state_table[TCP],(void*)&A_inv,TCP);//Inverted connection direction
+				if (table_entry != NULL) {
 					if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A_inv, tcp_header->flags, 1)) {
 						return 0;
 					}
 					state_table_update(table_entry,(void*)&A_inv,TCP);
-
+					packet_inject(fw->pcap_out,packet,header->caplen,"OUT/TCP");
+					return 0;
 				}
+
+				table_entry = state_table_find(state_table[TCP],(void*)&A,TCP);
+				if (table_entry != NULL) {
+					if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A, tcp_header->flags, 0)) {
+						return;
+					}
+					state_table_update(table_entry,(void *)&A,TCP);
+					packet_inject(fw->pcap_out,header,header->caplen,"OUT/TCP");
+				}
+
+				if (!check_rule(OUT, TCP, ip.source_ip, ip.destination_ip, ip_port.source_port, ip_port.destination_port)) {
+					//This package was block by the firewall , drop it
+					return;
+				}
+
+				if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A, tcp_header->flags, 0)) {
+					return;
+				}
+				state_table_insert(state_table[TCP],(void*)&A,TCP);//insert a new tcp stats
+				packet_inject(fw->pcap_out,packet,header->caplen,"OUT/TCP");
+			}
+			else if (protocol == 17) {//UDP protocol
+				udp_status A;
+				udp_status A_inv;
+				void *table_entry;
+				int ihl = ip_header->version & 0x0F;
+				udp_stor *udp_header = (udp_stor*)(&ip_header->version + ihl*4);
+
+				ip_port.source_ip = ip.source_ip;
+				ip_port.destination_ip = ip.destination_ip;
+				ip_port.source_port = unpack_2byte(udp_header->source_port);
+				ip_port.destination_port = unpack_2byte(udp_header->destination_port);
+
+				inv_ip_port.source_ip = ip.destination_ip;
+				inv_ip_port.destination_ip = ip.source_ip;
+				inv_ip_port.source_port = ip_port.destination_port;
+				inv_ip_port.destination_port = ip_port.source_port;
+
+				A.ip_port = ip_port;
+				A_inv.ip_port = inv_ip_port;
+				A.event_time = current_time;
+
+				NAT_UDP(fw, enthernet_header, ip_header, udp_header, OUT);
+
+				table_entry = state_table_find(state_table[UDP], (void*)&A_inv, UDP);//Inverted connection direction.
+				if (table_entry != NULL) {
+					state_table_update(table_entry,(void*)&A_inv,UDP);
+					packet_inject(fw->pcap_out,packet,header->caplen,"OUT/UDP");
+					return 0;
+				}
+
+				table_entry = state_table_find(state_table[UDP], (void*)&A, UDP);
+				if (table_entry != NULL) {
+					state_table_update(table_entry, (void*)&A, UDP);
+					packet_inject(fw->pcap_out, packet, header->caplen, "OUT/UDP");
+					return 0;
+				}
+
+				if (!check_rule(OUT, UDP, ip.source_ip, ip.destination_ip, ip_port.source_port, ip_port.destination_port));//blocked by the firewall
+				return 0;
+
+				state_table_insert(state_table[UDP],(void*)&A,UDP);
+				packet_inject(fw->pcap_out, packet, header->caplen, "OUT/UDP");
+				return 0;
+			}
+			else if (protocol == 1) {//ICMP
+				icmp_status A;
+				icmp_status A_inv;
+				void* table_entry;
+
+				A.ip = ip;
+				A_inv.ip = ip;
+				A.event_time = current_time;
+				A_inv.event_time = current_time;
+
+				NAT_ICMP(fw,enthernet_header,ip_header,OUT);
+
+				table_entry = state_table_find(state_table[ICMP], (void*)&A_inv, ICMP);// Inverted connection direction.
+				if (table_entry != NULL) {
+					state_table_update(table_entry, (void*)&A_inv, ICMP);
+					packet_inject(fw->pcap_out, packet, header->caplen, "OUT/ICMP");
+					return 1;
+				}
+
+				table_entry = state_table_find(state_table[ICMP], (void*)&A, ICMP);
+				if (table_entry != NULL) {
+					state_table_update(table_entry, (void*)&A, ICMP);
+					packet_inject(fw->pcap_out, packet, header->caplen, "OUT/ICMP");
+					return 1;
+				}
+
+				if (!check_rule(OUT, ICMP, ip.source_ip, ip.destination_ip, ip_port.source_port, ip_port.destination_port))
+					return 1;
+
+				state_table_insert(state_table[ICMP], (void*)A, ICMP);
+				packet_inject(fw->pcap_out, packet, header->caplen, "OUT/ICMP");
+				return 1;
+
+			}
+			else {
+				printf("Other protocol , drop this packet!;Define function : listen_in \n");
+				return 1;
 			}
 		}
 	}
+
+	if (enthertype == ETHERTYPE_ARP) {
+		arp_stor *arp_header = (arp_stor*)malloc(sizeof(arp_stor));
+		uint16_t arp_operation = unpack_2byte(arp_header->operation);
+		if (arp_operation == 1) {
+			if (address_equal_ip(fw->firewall_ip_bin, arp_header->target_protocol_addr)) {
+				bulid_ARP_reply(fw, arp_header);
+				packet_inject(fw->pcap_in, packet, header->caplen, "IN/ARP");
+				return 1;
+			}
+		}
+	}
+
+	return 1;
 }
 ////////////////////////////////////////////////////
 //main function listen out or sending out the data
 int listen_out(firewall *fw)
 {
+	const uint8_t* packet = NULL;
+	struct pcap_pkthdr *header = NULL;
 
+	int ret = pcap_next_ex(fwall->pcap_out, &header, &packet);
+	if (ret == -2) return -1;
+	if (packet == NULL) return -1;
+
+	ethernet_stor* ethernet_header = (ethernet_stor*)packet;
+	uint16_t ethertype = unpack_2byte(ethernet_header->ethertype);
+	struct timeval current_time = header->ts;
+
+#ifdef DEBUGGING
+
+#endif // DEBUGGING
+
+	if (ethertype == ETHERTYPE_IP) {
+		ip_stor* ip_header = (ip_stor*)ethernet_header->data;
+		int protocol = ip_header->protocol;
+		ip_group ip;
+		ip_group inv_ip;
+		ip_port_group ip_port;
+		ip_port_group inv_ip_port;
+
+			#ifdef DEBUGGING
+		
+			#endif
+
+		if (address_equal_ip(fw->switch_ip_bin, ip_header->destnation_ip)){ //Switch gets a packet for it, let's send to VM if allowed. 
+			if (protocol == 6) {
+				tcp_status A;
+				tcp_status A_inv;
+				void *table_entry;
+
+				int ihl = ip_header->version & 0x0F;
+				tcp_stor *tcp_header = (tcp_stor*)(ip_header->version + ihl * 4);
+
+				if (NAT_TCP(fw,ethernet_header,ip_header,tcp_header,IN)==0) {
+					return 0;
+				}
+
+				ip.source_ip = unpack_4byte(ip_header->source_ip);
+				ip.destination_ip = unpack_4byte(ip_header->destnation_ip);
+				inv_ip.source_ip = ip.destination_ip;
+				inv_ip.destination_ip = ip.source_ip;
+
+				ip_port.source_ip = ip.source_ip;
+				ip_port.destination_ip = ip.destination_ip;
+				ip_port.source_port = unpack_2byte(tcp_header->source_port);
+				ip_port.destination_port = unpack_2byte(tcp_header->destination_port);
+
+				inv_ip_port.source_ip = ip.destination_ip;
+				inv_ip_port.destination_ip = ip.source_ip;
+				inv_ip_port.source_port = ip_port.destination_port;
+				inv_ip_port.destination_port = ip_port.source_port;
+
+				A.ip_port = ip_port;
+				A_inv.ip_port = inv_ip_port;
+				A.event_time = current_time;
+				A_inv.event_time = current_time;
+
+				table_entry = state_table_find(state_table[TCP], (void*)&A_inv, TCP);
+				if (table_entry != NULL) {
+					if (!TCP_check_state((tcp_status*)table_entry,(tcp_status*)&A_inv,tcp_header->flags,1)) {
+						return 0;
+					}
+					state_table_update(state_table[TCP], (void*)&A_inv, TCP);
+					packet_inject(fw->pcap_out,packet,header->caplen,"IN/TCP");
+				}
+
+				table_entry = state_table_find(state_table[TCP], (void*)&A, TCP); // Current connection direction.
+				if (table_entry != NULL) { // Previous flow exists
+					if (!TCP_check_state((tcp_stats*)table_entry, (tcp_stats*)&A, tcp_header->flags, 0))
+						return 0;
+					state_table_update(table_entry, (void*)&A, TCP);
+					packet_inject(fw->pcap_in, packet, header->caplen, "IN/TCP");
+					return 0;
+				}
+
+				if (!check_rule(IN, TCP, ip.source_ip, ip.destination_ip, ip_port.source_port, ip_port.destination_port)) // Blocked by firewall, drop the packet.
+					return 0;
+
+				if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A, tcp_header->flags, 0))
+					return 0;
+				state_table_insert(state_table[TCP], (void*)&A, TCP); // New TCP state
+				packet_inject(fw->pcap_in, packet, header->caplen, "IN/TCP");
+				return 0;
+			}
+			else if (protocol == 17) {
+				udp_status A;
+				udp_status A_inv;
+				void *table_entry;
+
+				int ihl = ip_header->version & 0x0F;
+				udp_stor *udp_header = (udp_stor*)(ip_header->version + ihl * 4);
+
+				if (NAT_UDP(fw, ethernet_header, ip_header, udp_header, IN) == 0) return 0;
+
+				ip.source_ip = unpack_4byte(ip_header->source_ip);
+				ip.destination_ip = unpack_4byte(ip_header->destnation_ip);
+				inv_ip.source_ip = ip.destination_ip;
+				inv_ip.destination_ip = ip.source_ip;
+
+				ip_port.source_ip = ip.source_ip;
+				ip_port.destination_ip = ip.destination_ip;
+				ip_port.source_port = unpack_2byte(udp_header->source_port);
+				ip_port.destination_port = unpack_2byte(udp_header->destination_port);
+
+				inv_ip_port.source_ip = ip.destination_ip;
+				inv_ip_port.destination_ip = ip.source_ip;
+				inv_ip_port.source_port = ip_port.destination_port;
+				inv_ip_port.destination_port = ip_port.source_port;
+
+				A.ip_port = ip_port;
+				A_inv.ip_port = inv_ip_port;
+				A.event_time = current_time;
+				A_inv.event_time = current_time;
+
+				table_entry = state_table_find(state_table[UDP], (void*)&A_inv, UDP); // Inverted connection direction.
+				if (table_entry != NULL) { // Previous flow exists
+					state_table_update(table_entry, (void*)&A_inv, UDP);
+					packet_inject(fw->pcap_in, packet, header->caplen, "IN/UDP");
+					return 0;
+				}
+
+				table_entry = state_table_find(state_table[UDP], (void*)&A, UDP); // Current connection direction.
+				if (table_entry != NULL) { // Previous flow exists
+					state_table_update(table_entry, (void*)&A, UDP);
+					packet_inject(fw->pcap_in, packet, header->caplen, "IN/UDP");
+					return 0;
+				}
+
+				if (!check_rule(IN, UDP, ip.source_ip, ip.destination_ip, ip_port.source_port, ip_port.destination_port)) // Blocked by firewall, drop the packet.
+					return 0;
+
+				state_table_insert(state_table[UDP], (void*)&A, UDP); // UDP state
+				packet_inject(fw->pcap_in, packet, header->caplen, "IN/UDP");
+				return 0;
+			}
+			else if (protocol == 1) {
+				icmp_status A;
+				icmp_status A_inv;
+				void* table_entry;
+
+				NAT_ICMP(fw, ethernet_header, ip_header, IN);
+
+				ip.source_ip = unpack_4byte(ip_header->source_ip);
+				ip.destination_ip = unpack_4byte(ip_header->destnation_ip);
+				inv_ip.source_ip = ip.destination_ip;
+				inv_ip.destination_ip = ip.source_ip;
+				A.ip = ip;
+				A_inv.ip = inv_ip;
+				A.event_time = current_time;
+				A_inv.event_time = current_time;
+
+				table_entry = state_table_find(state_table[ICMP], (void*)&A_inv, ICMP); // Inverted connection direction.
+				if (table_entry != NULL) { // Previous flow exists
+					state_table_update(table_entry, (void*)&A_inv, ICMP);
+					packet_inject(fw->pcap_in, packet, header->caplen, "IN/ICMP");
+					return 0;
+				}
+
+				table_entry = state_table_find(state_table[ICMP], (void*)&A, ICMP); // Current connection direction.
+				if (table_entry != NULL) { // Previous flow exists
+					state_table_update(table_entry, (void*)&A, ICMP);
+					packet_inject(fw->pcap_in, packet, header->caplen, "IN/ICMP");
+					return 0;
+				}
+
+				if (!check_rule(IN, ICMP, ip.source_ip, ip.destination_ip, 0, 0)) // Blocked by firewall, drop the packet.
+					return 0;
+
+				state_table_insert(state_table[ICMP], (void*)&A, ICMP); // ICMP state
+
+				packet_inject(fw->pcap_in, packet, header->caplen, "IN/ICMP");
+				return;
+			}
+			else {
+				printf("Other Protocol,drop this packet; situation : listen_out ")
+			}
+		}
+	}
+
+	if (ethertype == ETHERTYPE_ARP) {
+		arp_stor* arp_header = (arp_stor*)ethernet_header->data;
+		uint16_t arp_operation = unpack_2byte(arp_header->operation);
+
+		if (arp_operation == 1) { // This is arp request
+			if (address_equal_ip(fw->firewall_ip_bin, arp_header->target_protocol_addr)) { // ARP request for firewall IP
+				bulid_ARP_reply(fw, arp_header);
+				packet_inject(fw->pcap_out, packet, header->caplen, "OUT/ARP");
+				return 1;
+			}
+		}
+	}
 }
 
 ////////////////////////////////////////////////////
