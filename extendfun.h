@@ -64,7 +64,7 @@ void check_connection()
 
 	std::string ip;
 	int commLEN = 1024;
-	while (getline(website, ip)) {
+	while (getline(webfile, ip)) {
 		char comm[commLEN];
 		sprintf(comm,"ping %s",ip.c_str());
 		system(comm);

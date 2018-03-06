@@ -614,8 +614,8 @@ void state_table_insert(hash_node *hash_table, void* stats_A, int serv_number)
 void state_table_update(void* table_entry, void* stats_A, int serv_number)
 {
 	if (serv_number == 0) {//tcp
-		tcp_status* tcp_A = (tcp_status*)stats_A;
-		tcp_status* pointer = (tcp_status*)table_entry;
+		tcp_status* tcp_A = (tcp_status *)stats_A;
+		tcp_status* pointer = (tcp_status *)table_entry;
 		
 		pointer->fin_A = tcp_A->fin_A;
 		pointer->fin_B = tcp_A->fin_B;
@@ -624,13 +624,13 @@ void state_table_update(void* table_entry, void* stats_A, int serv_number)
 		pointer->event_time = tcp_A->event_time;
 	}
 	else if (serv_number==1) {//udp
-		udp_status* udp_A = (udp_status*)stats_A;
-		udp_status* pointer = (udp_status*)table_entry;
+		udp_status* udp_A = (udp_status *)stats_A;
+		udp_status* pointer = (udp_status *)table_entry;
 		pointer->event_time = udp_A->event_time;
 	}
 	else if (serv_number == 2) {//icmp
-		icmp_status* icmp_A = (icmp_A*)stats_A;
-		icmp_status* pointer = (icmp_A*)table_entry;
+		icmp_status* icmp_A = (icmp_A *)stats_A;
+		icmp_status* pointer = (icmp_A *)table_entry;
 		pointer->event_time = icmp_A->event_time;
 	}
 }

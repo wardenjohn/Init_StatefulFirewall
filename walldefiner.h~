@@ -39,7 +39,7 @@ typedef struct tcp_stor
 	uint8_t options_data;
 }tcp_stor;
 
-typedef struct pse_tcp_stor
+typedef struct psedo_tcp_stor
 {
 	uint8_t source_ip[4];
 	uint8_t destination_ip[4];
@@ -57,7 +57,7 @@ typedef struct udp_stor {
 	uint8_t data;
 }udp_stor;
 
-typedef struct pse_udp_stor
+typedef struct psedo_udp_stor
 {
 	uint8_t source_ip[4];
 	uint8_t destination_ip[4];
@@ -108,13 +108,13 @@ typedef struct rules_list
 }rules_list;
 
 /****************IP block rules ******************/
-typedef struct ip_group_def
+typedef struct ip_group
 {
 	uint32_t source_ip;
 	uint32_t destination_ip;
 }ip_group;
 
-typedef struct ip_port_group_def
+typedef struct ip_port_group
 {
 	uint32_t source_ip;
 	uint32_t destination_ip;
@@ -122,13 +122,13 @@ typedef struct ip_port_group_def
 	uint32_t destination_port;
 }ip_port_group;
 
-typedef struct ip_status_def
+typedef struct ip_status
 {
 	ip_group ip;
 	int service;
 }ip_status;
 
-typedef struct tcp_status_def
+typedef struct tcp_status
 {
 	ip_port_group ip_port;
 	int last_state;
@@ -138,12 +138,12 @@ typedef struct tcp_status_def
 
 }tcp_status;
 
-typedef struct udp_status_def {
+typedef struct udp_status {
 	ip_port_group ip_port;
 	struct timeval event_time;
 }udp_status;
 
-typedef struct icmp_status_def {
+typedef struct icmp_status {
 	ip_group ip;
 	struct timeval event_time;
 }icmp_status;
@@ -156,7 +156,7 @@ typedef struct hash_element
 	//this void * means that it is a pointer pointing at any kind of functions
 }hash_ele;
 
-typedef struct hash_node_def
+typedef struct hash_node
 {
 	int length;
 	hash_ele *head;

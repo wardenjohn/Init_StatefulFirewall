@@ -24,9 +24,9 @@ int NEXT_UDP_PORT;
 
 int IS_ONLINE;
 
-rules_list rules_table;//the rules table to store the rules
-hash_node state_table[TABLE_LINE][TABLE_SIZE];
-uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];//class using the protocol/type 
+//rules_list rules_table;//the rules table to store the rules
+//hash_node state_table[TABLE_LINE][TABLE_SIZE];
+//uint16_t port_map[MAP_SIZE][MAP_SIZE][PORT_RANGE];//class using the protocol/type 
 
 /*function to find if the device is detected*/
 bool is_devicefound(char *wait_to_check)
@@ -267,7 +267,7 @@ uint16_t get_port(uint16_t port,int type,int dir)
 			if (port_map[type][dir][count] == 0) break;
 			if (port_map[type][dir][count] == port) return port_map[type][(dir+1)%2][count];//Dont know why
 		}
-		if (i == PORT_RANGE) {
+		if (count == PORT_RANGE) {
 			std::cout << "Out of the Port Range" << std::endl;
 			return 0;
 		}
@@ -281,7 +281,7 @@ uint16_t get_port(uint16_t port,int type,int dir)
 			if (port_map[type][dir][count] == 0) break;
 			if (port_map[type][dir][count] == port) return port_map[type][(dir + 1) % 2][count];
 		}
-		if (i == PORT_RANGE) {
+		if (count == PORT_RANGE) {
 			std::cout << "Out of the Port Range" << std::endl;
 			return 0;
 		}
@@ -449,7 +449,7 @@ int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_
 		memcpy(ip_header->destnation_ip,fw->virtual_ip_bin,sizeof(fw->virtual_ip_bin));
 		compute_ip_checksum(ip_header);
 
-		uint16_t new_destination_port = get_port(unpack_2byte(tcp_header),TCP,dir);
+		uint16_t new_destination_port = get_port(unpack_2byte(tcp_header->destination_port),TCP,dir);
 		new_destination_port = pack_2byte((uint8_t*)&new_destination_port);
 		memcpy(tcp_header->destination_port,(uint8_t*)&new_destination_port,sizeof(uint16_t));
 	
@@ -464,9 +464,9 @@ int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_
 		psedo_tcp_head->tcp_length[0] = ((uint8_t)(length >> 8)) & 0xFF;
 		psedo_tcp_head->tcp_length[1] = (uint8_t)(length) & 0xFF;
 
-		psedo_tcp_head->tcp_head = (tcp_header*)malloc(sizeof(length));
+		psedo_tcp_head->tcp_head = (tcp_stor *)malloc(length);
 		memcpy(psedo_tcp_head->tcp_head, tcp_header, length);
-		compute_ip_checksum(psedo_tcp_head);
+		compute_tcp_checksum(psedo_tcp_head);
 		memcpy(tcp_header->checksum, psedo_tcp_head->tcp_head->checksum, sizeof(tcp_header->checksum));
 		free(psedo_tcp_head->tcp_head);
 		free(psedo_tcp_head);
@@ -474,7 +474,7 @@ int NAT_TCP(firewall *fw,ethernet_stor *ethernet_header ,ip_stor *ip_header,tcp_
 	return 1;
 }
 
-int NAT_UDP(firewall *fw, ethernet_stor *ethernet_header, ip_stor *ip_header, udp_stor *udp_heaeder, int dir)
+int NAT_UDP(firewall *fw, ethernet_stor *ethernet_header, ip_stor *ip_header, udp_stor *udp_header, int dir)
 {
 	if (dir == OUT) {
 		memcpy(ethernet_header->source_mac, fw->switch_mac_address, sizeof(fw->switch_mac_address));
@@ -482,9 +482,9 @@ int NAT_UDP(firewall *fw, ethernet_stor *ethernet_header, ip_stor *ip_header, ud
 		memcpy(ip_header->source_ip, fw->switch_ip_bin, sizeof(fw->switch_ip_bin));
 		compute_ip_checksum(ip_header);
 
-		uint16_t new_sorce_port = get_port(unpack_2byte(udp_heaeder), UDP, dir);
-		new_sorce_port = pack_2byte((uint8_t*)*new_sorce_port);
-		memcpy(udp_heaeder->source_port,(uint8_t)&new_sorce_port,sizeof(uint16_t));
+		uint16_t new_sorce_port = get_port(unpack_2byte(udp_header->source_port), UDP, dir);
+		new_sorce_port = pack_2byte((uint8_t*)&new_sorce_port);
+		memcpy(udp_header->source_port,(uint8_t*)&new_sorce_port,sizeof(uint16_t));
 
 		psedo_udp_stor *psedo_upd_header = (psedo_udp_stor*)malloc(sizeof(psedo_udp_stor));
 
@@ -492,15 +492,15 @@ int NAT_UDP(firewall *fw, ethernet_stor *ethernet_header, ip_stor *ip_header, ud
 		memcpy(psedo_upd_header->destination_ip, ip_header->destnation_ip, sizeof(ip_header->destnation_ip));
 		psedo_upd_header->reserved = 0;
 		psedo_upd_header->protocol = ip_header->protocol;
-		uint16_t length = unpack_2byte(udp_heaeder->length);
-		psedo_upd_header->udp_length[0] = udp_heaeder->length[0];
-		psedo_upd_header->udp_length[1] = udp_heaeder->length[1];
+		uint16_t length = unpack_2byte(udp_header->length);
+		psedo_upd_header->udp_length[0] = udp_header->length[0];
+		psedo_upd_header->udp_length[1] = udp_header->length[1];
 
-		psedo_upd_header->udp_head = (udp_heaeder*)malloc(length);
-		memcpy(pseudo_udp_header->udp_header, udp_header, len);
+		psedo_upd_header->udp_head = (udp_stor*)malloc(length);
+		memcpy(psedo_upd_header->udp_head, udp_header, length);
 		
 		compute_udp_checksum(psedo_upd_header);
-		memcpy(udp_heaeder->checksum,psedo_upd_header->udp_head->checksum,sizeof(udp_heaeder->checksum));
+		memcpy(udp_header->checksum,psedo_upd_header->udp_head->checksum,sizeof(udp_header->checksum));
 		free(psedo_upd_header->udp_head);
 		free(psedo_upd_header);
 	}
@@ -510,23 +510,23 @@ int NAT_UDP(firewall *fw, ethernet_stor *ethernet_header, ip_stor *ip_header, ud
 		memcpy(ip_header->destnation_ip, fw->virtual_ip_bin, sizeof(fw->virtual_ip_bin));
 		compute_ip_checksum(ip_header);
 
-		uint16_t new_destination_port = get_port(unpack_2byte(udp_heaeder->destination_port), UDP, dir);
+		uint16_t new_destination_port = get_port(unpack_2byte(udp_header->destination_port), UDP, dir);
 		new_destination_port = pack_2byte((uint8_t*)&new_destination_port);
-		memcpy(udp_heaeder->destination_port, (uint8_t)&new_destination_port, sizeof(uint16_t));
+		memcpy(udp_header->destination_port, (uint8_t*)&new_destination_port, sizeof(uint16_t));
 
 		psedo_udp_stor *psedo_udp_head = (psedo_udp_stor*)malloc(sizeof(psedo_udp_stor));
 		memcpy(psedo_udp_head->source_ip, ip_header->source_ip, sizeof(ip_header->source_ip));
 		memcpy(psedo_udp_head->destination_ip, ip_header->destnation_ip, sizeof(ip_header->destnation_ip));
 		psedo_udp_head->reserved = 0;
 		psedo_udp_head->protocol = ip_header->protocol;
-		uint16_t length = unpack_2byte(udp_heaeder->length);
-		psedo_udp_head->udp_length[0] = udp_heaeder->length[0];
-		psedo_udp_head->udp_length[1] = udp_heaeder->length[1];
+		uint16_t length = unpack_2byte(udp_header->length);
+		psedo_udp_head->udp_length[0] = udp_header->length[0];
+		psedo_udp_head->udp_length[1] = udp_header->length[1];
 
 		psedo_udp_head->udp_head = (udp_stor*)malloc(length);
-		memcpy(psedo_udp_head->udp_head,udp_heaeder,sizeof(length));
+		memcpy(psedo_udp_head->udp_head,udp_header,sizeof(length));
 		compute_udp_checksum(psedo_udp_head);
-		memcpy(udp_heaeder->checksum,psedo_udp_head->udp_head->checksum,sizeof(udp_heaeder->checksum));
+		memcpy(udp_header->checksum,psedo_udp_head->udp_head->checksum,sizeof(udp_header->checksum));
 		free(psedo_udp_head->udp_head);
 		free(psedo_udp_head);
 	}
@@ -646,7 +646,7 @@ int listen_in(firewall *fw)
 				table_entry = state_table_find(state_table[TCP],(void*)&A,TCP);
 				if (table_entry != NULL) {
 					if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A, tcp_header->flags, 0)) {
-						return;
+						return 0;
 					}
 					state_table_update(table_entry,(void *)&A,TCP);
 					packet_inject(fw->pcap_out,header,header->caplen,"OUT/TCP");
@@ -654,11 +654,11 @@ int listen_in(firewall *fw)
 
 				if (!check_rule(OUT, TCP, ip.source_ip, ip.destination_ip, ip_port.source_port, ip_port.destination_port)) {
 					//This package was block by the firewall , drop it
-					return;
+					return 0;
 				}
 
 				if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A, tcp_header->flags, 0)) {
-					return;
+					return 0;
 				}
 				state_table_insert(state_table[TCP],(void*)&A,TCP);//insert a new tcp stats
 				packet_inject(fw->pcap_out,packet,header->caplen,"OUT/TCP");
@@ -736,7 +736,7 @@ int listen_in(firewall *fw)
 				if (!check_rule(OUT, ICMP, ip.source_ip, ip.destination_ip, ip_port.source_port, ip_port.destination_port))
 					return 1;
 
-				state_table_insert(state_table[ICMP], (void*)A, ICMP);
+				state_table_insert(state_table[ICMP], (void*)&A, ICMP);
 				packet_inject(fw->pcap_out, packet, header->caplen, "OUT/ICMP");
 				return 1;
 
@@ -769,12 +769,12 @@ int listen_out(firewall *fw)
 	const uint8_t* packet = NULL;
 	struct pcap_pkthdr *header = NULL;
 
-	int ret = pcap_next_ex(fwall->pcap_out, &header, &packet);
+	int ret = pcap_next_ex(fw->pcap_out, &header, &packet);
 	if (ret == -2) return -1;
 	if (packet == NULL) return -1;
 
 	ethernet_stor* ethernet_header = (ethernet_stor*)packet;
-	uint16_t ethertype = unpack_2byte(ethernet_header->ethertype);
+	uint16_t ethertype = unpack_2byte(ethernet_header->ethernet_type);
 	struct timeval current_time = header->ts;
 
 #ifdef DEBUGGING
@@ -837,7 +837,7 @@ int listen_out(firewall *fw)
 
 				table_entry = state_table_find(state_table[TCP], (void*)&A, TCP); // Current connection direction.
 				if (table_entry != NULL) { // Previous flow exists
-					if (!TCP_check_state((tcp_stats*)table_entry, (tcp_stats*)&A, tcp_header->flags, 0))
+					if (!TCP_check_state((tcp_status*)table_entry, (tcp_status*)&A, tcp_header->flags, 0))
 						return 0;
 					state_table_update(table_entry, (void*)&A, TCP);
 					packet_inject(fw->pcap_in, packet, header->caplen, "IN/TCP");
@@ -853,6 +853,7 @@ int listen_out(firewall *fw)
 				packet_inject(fw->pcap_in, packet, header->caplen, "IN/TCP");
 				return 0;
 			}
+
 			else if (protocol == 17) {
 				udp_status A;
 				udp_status A_inv;
@@ -940,10 +941,10 @@ int listen_out(firewall *fw)
 				state_table_insert(state_table[ICMP], (void*)&A, ICMP); // ICMP state
 
 				packet_inject(fw->pcap_in, packet, header->caplen, "IN/ICMP");
-				return;
+				return 0;
 			}
 			else {
-				printf("Other Protocol,drop this packet; situation : listen_out ")
+				printf("Other Protocol,drop this packet; situation : listen_out ");
 			}
 		}
 	}

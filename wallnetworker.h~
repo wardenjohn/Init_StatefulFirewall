@@ -1,4 +1,5 @@
 /***********This is the function and structor of network definder file***********/
+#include "walldefiner.h"
 #define MAC_NUM 6
 #define BIN_NUM 4
 #define HIGH_PORT 50000
@@ -56,7 +57,7 @@ arp_stor* copy_arp_head(arp_stor* arp_header);
 
 void compute_ip_checksum(ip_stor *ip);//计算ip校验和
 
-void compute_tcp_checksum(psedo_tcp_stor *tcp);
+void compute_tcp_checksum(tcp_stor *tcp);
 
 void compute_udp_checksum(psedo_udp_stor* pseudo_udp);
 
