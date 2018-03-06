@@ -54,7 +54,7 @@ typedef struct FireWall {
 /************ Package function ***********/
 arp_stor* copy_arp_head(arp_stor* arp_header);
 
-void compute_ip_checksum(ip_stor *ip);//¼ÆËãipÐ£ÑéºÍ
+void compute_ip_checksum(ip_stor *ip);//ï¿½ï¿½ï¿½ï¿½ipÐ£ï¿½ï¿½ï¿½
 
 void compute_tcp_checksum(psedo_tcp_stor *tcp);
 
@@ -105,10 +105,12 @@ int convert_to_ip(char *buff,char *ip_dest);
 
 uint32_t unpack_4byte(const uint8_t *buf);//unpack the web package
 
-uint16_t unpack_2byte(const uint8_t *buf);//½â°ü
+uint16_t unpack_2byte(const uint8_t *buf);//ï¿½ï¿½ï¿½
 
-uint16_t pack_2byte(const uint8_t *buf);//´ò°ü
+uint16_t pack_2byte(const uint8_t *buf);//ï¿½ï¿½ï¿½
 
 uint32_t pack_4byte(const uint8_t *buf);
 
 int ip_port_group_issame(ip_port_group A, ip_port_group B);
+
+int ip_group_issame(ip_group A,ip_group B);

@@ -49,8 +49,8 @@ void compute_ip_checksum(ip_stor *ip)
 
 void compute_tcp_checksum(psedo_tcp_stor *psedo_tcp)
 {
-	psedo_tcp->tcp_head->checksump[0] = 0;
-	psedo_tcp->tcp_head->checksump[1] = 1;
+	psedo_tcp->tcp_head->checksum[0] = 0;
+	psedo_tcp->tcp_head->checksum[1] = 1;
 
 	uint8_t *data = (uint8_t*)psedo_tcp;
 	uint32_t acc = 0xFFFF;
@@ -80,7 +80,7 @@ void compute_tcp_checksum(psedo_tcp_stor *psedo_tcp)
 		if (acc > 0xffff)acc -= 0xffff;
 		word = 0;
 		acc += ntohs(word);
-		if (ac > 0xffff)acc -= 0xffff;
+		if (acc > 0xffff)acc -= 0xffff;
 
 	}
 
@@ -88,7 +88,7 @@ void compute_tcp_checksum(psedo_tcp_stor *psedo_tcp)
 	uint8_t ax[2];
 	ax[0] = (uint8_t)checksum & 0xFF;
 	ax[1] = (uint8_t)(checksum >> 8) & 0xFF;
-	memcpy(psedo_tcp->tcp_head->checksump,ax,sizeof(ax));
+	memcpy(psedo_tcp->tcp_head->checksum,ax,sizeof(ax));
 }
 
 void compute_udp_checksum(psedo_udp_stor *psedo_udp)
@@ -142,7 +142,7 @@ void packet_inject(pcap_t *p, const void *packet, size_t len, char* dir)
 {
 	if (ONLINE) {
 		if (pcap_inject(p, packet, len) == -1) {
-			printf("Error inject %s / %s \n", pacp_geterr(p), dir);
+			printf("Error inject %s / %s \n", pcap_geterr(p), dir);
 			exit(1);
 		}
 	}
@@ -208,13 +208,24 @@ int check_rule(int dir, int service, uint32_t src_ip, uint32_t dst_ip, uint16_t 
 				}
 			}
 		}
-		pointer = pointer->next;
+		pointer = (rules_ele*)pointer->next;
 	}
 	return ret;
 }
 /************* Hash Functions ******************/
 
 int hash_ip_port(ip_port_group ip_port)
+{
+	int result = 17;
+	result = 31 * result + ip_port.source_ip;
+	result = 31 * result + ip_port.source_port;
+	result = 31 * result + ip_port.destination_ip;
+	result = 31 * result + ip_port.destination_port;
+	if (result < 0) result *= -1;
+	return result % TABLE_SIZE;
+}
+
+int hash_ip(ip_group ip_port)
 {
 	int result = 17;//why
 	result = 31 * result + ip_port.source_ip;
@@ -235,7 +246,7 @@ int state_hash(void* state_A, int server_number)
 	}
 	else if (server_number == 2) {//ICMP
 		icmp_status *icmp_A = (icmp_status*)state_A;
-		return hash_ip_port(icmp_A->ip);
+		return hash_ip(icmp_A->ip);
 	}
 	else {
 		std::cout << "Wrong service number !" << std::endl;
@@ -283,7 +294,7 @@ void* state_table_find(hash_node *hash_table, void* status_A, int server_number)
 	while (hash_pointer != NULL) {
 		if (out_dated_entry(status_A, hash_pointer->stats, server_number)) {
 			if (hash_prev == NULL) { //no previes pointer
-				hash_table[hash].head = hash_pointer->next;
+				hash_table[hash].head = (hash_ele*)hash_pointer->next;
 			}
 			else {
 				hash_prev->next = hash_pointer->next;
@@ -322,7 +333,7 @@ int match_status(void* status_A, void* status_B, int type)
 	else if (type == 2) {//icmp
 		icmp_status *icmp_A = (icmp_status*)status_A;
 		icmp_status *icmp_B = (icmp_status*)status_B;
-		return ip_port_group_issame(icmp_A->ip, icmp_B->ip);
+		return ip_group_issame(icmp_A->ip, icmp_B->ip);
 	}
 	else {//syntax error
 		printf("Wrong compare !");
@@ -595,7 +606,7 @@ void state_table_insert(hash_node *hash_table, void* stats_A, int serv_number)
 		new_udp->event_time = udp_A->event_time;
 		new_node->stats = new_udp;
 	}
-	else if (service_number == 2) {//ICMP
+	else if (serv_number == 2) {//ICMP
 		icmp_status *icmp_A = (icmp_status*)stats_A;
 		icmp_status *new_icmp = (icmp_status*)malloc(sizeof(icmp_status));
 		
@@ -629,8 +640,8 @@ void state_table_update(void* table_entry, void* stats_A, int serv_number)
 		pointer->event_time = udp_A->event_time;
 	}
 	else if (serv_number == 2) {//icmp
-		icmp_status* icmp_A = (icmp_A *)stats_A;
-		icmp_status* pointer = (icmp_A *)table_entry;
+		icmp_status* icmp_A = (icmp_status *)stats_A;
+		icmp_status* pointer = (icmp_status *)table_entry;
 		pointer->event_time = icmp_A->event_time;
 	}
 }
@@ -658,7 +669,7 @@ uint32_t unpack_4byte(const uint8_t *buf)
 {
 	uint32_t aux;
 	memcpy(&aux,buf,sizeof(uint32_t));
-	return ntonl(aux);//ntohl() function is to convert the unsign long web data into the format of this computer
+	return ntohl(aux);//ntohl() function is to convert the unsign long web data into the format of this computer
 }
 
 uint16_t unpack_2byte(const uint8_t *buf)
@@ -694,6 +705,12 @@ bool address_equals_ip(const uint8_t *source, const uint8_t *check)
 int ip_port_group_issame(ip_port_group A, ip_port_group B)
 {
 	if (A.destination_port == B.destination_port&&A.destination_ip == B.destination_ip&&A.source_ip == B.source_ip&&A.source_port == B.source_port)
+		return 1;
+	return 0;
+}
+
+int ip_group_issame(ip_group A, ip_group B) {
+	if (A.source_ip == B.source_ip && A.destination_ip == B.destination_ip)
 		return 1;
 	return 0;
 }
